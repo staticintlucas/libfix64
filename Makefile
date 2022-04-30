@@ -18,7 +18,7 @@ $(OBJDIR)/libfix64.a: $(OBJFILES) | $(OBJDIR)
 	$(AR) rcs $@ $^
 
 $(OBJFILES): $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR):
 	mkdir $(OBJDIR)
@@ -27,4 +27,4 @@ $(OBJDIR):
 clean:
 	$(RM) -r $(OBJDIR)
 
--include $(DEPS)
+-include $(DEPFILES)
