@@ -47,14 +47,14 @@ typedef struct {
 {% for type in types +%}
 #define {{type.prefix | upper}}_FRAC_BITS {#
     #}{{type.frac_bits}} ///< Number of fractional bits for {{type.name}}
-#define {{type.prefix | upper}}_INT_BITS  {#
+#define {{type.prefix | upper}}_INT_BITS {#
     #}{{type.int_bits}} ///< Number of integral bits for {{type.name}}
-#define {{type.prefix | upper}}_MAX       {#
+#define {{type.prefix | upper}}_MAX {#
     #}(({{type.name}}){ {{-type.repr_max-}} }) ///< Maximum value for a {{type.name}}
-#define {{type.prefix | upper}}_MIN       {#
+#define {{type.prefix | upper}}_MIN {#
     #}(({{type.name}}){ {{-type.repr_min-}} }) ///< Minimum value for a {{type.name}}
-#define {{type.prefix | upper}}_EPSILON   {#
-    #}(({{type.name}}){ {{-type.repr_prefix | upper}}_C(1)}) ///< Smallest positive non-zero value for {{type.name}}
+#define {{type.prefix | upper}}_EPSILON {#
+    #}(({{type.name}}){1}) ///< Smallest positive non-zero value for {{type.name}}
 {% endfor %}
 
 //==========================================================
@@ -146,8 +146,8 @@ static inline {{type.name}} {{type.prefix}}_from_{{float.prefix}}({{float.name}}
     static const {{float.name}} max = {{type.repr_max}};
     static const {{float.name}} min = {{type.repr_min}};
 #else
-    static const {{float.name}} max = (({{type.repr_max}}) & {#
-        #}~(({{type.repr_prefix | upper}}_C(1) << ({{type.int_bits + type.frac_bits}} - {{float.prefix | upper}}_MANT_DIG)) - 1));
+    static const {{float.name}} max = (({{type.repr_max}}) & ~(({{type.repr_prefix | upper}}_C(1) {#
+        #}<< ({{type.int_bits + type.frac_bits}} - {{float.prefix | upper}}_MANT_DIG)) - 1));
     static const {{float.name}} min = {{ "-max" if type.signed else type.repr_min }};
 #endif
     {{type.repr}} repr;
