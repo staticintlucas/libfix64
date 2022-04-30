@@ -12,6 +12,7 @@ class FixedType:
     repr: str
     repr_prefix: str
     repr_min: str
+    repr_max: str
     signed: bool
     int_bits: int # excludes sign bit
     frac_bits: int
@@ -29,10 +30,10 @@ class Constant:
 
 types = [
     FixedType(
-        name="ufix64_t", prefix="ufix64", repr="uint64_t", repr_prefix="uint64",
+        name="ufix64_t", prefix="ufix64", repr="uint64_t", repr_prefix="uint64", repr_max="UINT64_MAX",
         repr_min="UINT64_C(0)", signed=False, int_bits=32, frac_bits=32, mul_type="__uint128_t"),
     FixedType(
-        name="fix64_t", prefix="fix64", repr="int64_t", repr_prefix="int64",
+        name="fix64_t", prefix="fix64", repr="int64_t", repr_prefix="int64", repr_max="INT64_MAX",
         repr_min="INT64_MIN", signed=True, int_bits=31, frac_bits=32, mul_type="__int128_t"),
 ]
 floats = [
@@ -76,3 +77,5 @@ result = template.render(
 
 with open("build/jinja/fix64.h", "w") as f:
     f.write(result)
+    if not result.endswith("\n"):
+        f.write("\n")
