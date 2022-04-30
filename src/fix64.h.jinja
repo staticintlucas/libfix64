@@ -1,0 +1,442 @@
+{#- jinja2 template for fix64.h -#}
+
+{{header_comment}}
+
+#pragma once
+
+#include <float.h>
+#include <math.h>
+#include <stdint.h>
+
+#ifndef __has_builtin
+    #define __has_builtin(_) 0
+#endif
+#if __has_builtin(__builtin_expect_with_probability)
+    // Use probability of 0.9 - this is high enough that clang will reorder branches, etc. but it
+    // won't use branches instead of cmov instructions (it does this with probability >0.99, default
+    // for __builtin_expect seems to be 1.0). GCC uses default of probability of 0.9 and uses cmov
+    // anyway regardless of probability
+    #define FIX64_LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
+    #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
+#elif __has_builtin(__builtin_expect)
+    #define FIX64_LIKELY(cond) __builtin_expect((cond), 1)
+    #define FIX64_UNLIKELY(cond) __builtin_expect((cond), 0)
+#else
+    #define FIX64_LIKELY(cond) (cond)
+    #define FIX64_UNLIKELY(cond) (cond)
+#endif
+
+//==========================================================
+// Type definitions
+//==========================================================
+{% for type in types +%}
+/// {{ "Signed" if type.signed else "Unsigned" }} fixed point {{ "u" if not type.signed }}{#
+    #}q{{-type.int_bits}}.{{type.frac_bits}} type
+typedef struct {
+    {{type.repr}} repr;
+} {{type.name}};
+{% endfor %}
+
+//==========================================================
+// Defines
+//==========================================================
+{% for type in types +%}
+#define {{type.prefix | upper}}_FRAC_BITS {#
+    #}{{type.frac_bits}} ///< Number of fractional bits for {{type.name}}
+#define {{type.prefix | upper}}_INT_BITS  {#
+    #}{{type.int_bits}} ///< Number of integral bits for {{type.name}}
+#define {{type.prefix | upper}}_MAX       {#
+    #}(({{type.name}}){ {{-type.repr_prefix | upper}}_MAX}) ///< Maximum value for a {{type.name}}
+#define {{type.prefix | upper}}_MIN       {#
+    #}(({{type.name}}){ {{-type.repr_min-}} }) ///< Minimum value for a {{type.name}}
+#define {{type.prefix | upper}}_EPSILON   {#
+    #}(({{type.name}}){ {{-type.repr_prefix | upper}}_C(1)}) ///< Smallest positive non-zero value for {{type.name}}
+{% endfor %}
+
+//==========================================================
+// Literals
+//==========================================================
+
+// These function calls will be inlined by the compiler, Clang 13 does this even with -Og
+{% for type in types +%}
+/// Creates a {{type.name}} literal, for example {{type.prefix | upper}}_C(2.5)
+#define {{type.prefix | upper}}_C(x) ({{type.prefix}}_from_ldbl((long double)(x##L)))
+{% endfor %}
+
+//==========================================================
+// Constants
+//==========================================================
+{% for type in types +%}
+{% for num in nums %}
+/// {{type.name}} constant value {{num.string}}
+#define {{type.prefix | upper}}_{{num.name | upper}} (({{type.name}}){ {#-
+    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(num.value, type.frac_bits))}})})
+{% endfor %}
+
+{% for const in consts %}
+/// {{type.name}} mathematical constant {{const.string}}
+#define {{type.prefix | upper}}_{{const.name | upper}} (({{type.name}}){ {#-
+    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(const.value, type.frac_bits))}})})
+{% endfor %}
+{% endfor %}
+
+//==========================================================
+// Generic functions
+//==========================================================
+
+// _Generic is only available since C11
+#if __STDC_VERSION__ >= 201112L
+{%- for float in floats +%}
+/// Generic macro to convert a fixed point type to {{float.name}}
+#define fix_to_{{float.prefix}}(x) _Generic((x), \
+{% for type in types %}
+        {{type.name}}: {{type.prefix}}_to_{{float.prefix}}, \
+{% endfor %}
+    )(x)
+{% endfor %}
+{% for type in types +%}
+/// Generic macro to convert a floating point type to {{type.name}}
+#define {{type.prefix}}_from(x) _Generic((x), \
+{% for float in floats %}
+        {{float.name}}: {{type.prefix}}_from_{{float.prefix}}, \
+{% endfor %}
+    )(x)
+{% endfor %}
+#endif
+
+//==========================================================
+// Conversion functions
+//==========================================================
+{% for type in types %}
+{% for float in floats +%}
+/// Converts a {{type.name}} to {{float.name}}
+///
+/// @param value the {{type.name}} value to convert
+/// @return converted {{float.name}} value
+static inline {{float.name}} {{type.prefix}}_to_{{float.prefix}}({{type.name}} value);
+{% endfor %}
+{% endfor %}
+{% for type in types %}
+{% for float in floats +%}
+/// Converts a {{float.name}} to {{type.name}}
+///
+/// Saturates if input is outside of {{type.name}}'s range. Undefined behaviour if input is NaN
+///
+/// @param value the {{float.name}} value to convert
+/// @return converted {{type.name}} value
+static inline {{type.name}} {{type.prefix}}_from_{{float.prefix}}({{float.name}} value);
+{% endfor %}
+{% endfor %}
+
+//==========================================================
+// Comparison functions
+//==========================================================
+{% for type in types +%}
+/// Compares two {{type.name}} values for equality
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if the values are equal, 0 otherwise
+static inline int {{type.prefix}}_eq({{type.name}} lhs, {{type.name}} rhs);
+
+/// Compares two {{type.name}} values for inequality
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if the values are not equal, 0 otherwise
+static inline int {{type.prefix}}_neq({{type.name}} lhs, {{type.name}} rhs);
+
+/// Check if a {{type.name}} is less than another
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if lhs is less than rhs, 0 otherwise
+static inline int {{type.prefix}}_lt({{type.name}} lhs, {{type.name}} rhs);
+
+/// Check if a {{type.name}} is greater than another
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if lhs is greater than rhs, 0 otherwise
+static inline int {{type.prefix}}_gt({{type.name}} lhs, {{type.name}} rhs);
+
+/// Check if a {{type.name}} is less than or equal to another
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if lhs is less than or equal to rhs, 0 otherwise
+static inline int {{type.prefix}}_lte({{type.name}} lhs, {{type.name}} rhs);
+
+/// Check if a {{type.name}} is greater than or equal to another
+///
+/// @param lhs left hand side for comparison
+/// @param rhs right hand side for comparison
+/// @return 1 if lhs is greater than or equal to rhs, 0 otherwise
+static inline int {{type.prefix}}_gte({{type.name}} lhs, {{type.name}} rhs);
+{% endfor %}
+
+//==========================================================
+// Arithmetic functions
+//==========================================================
+{% for type in types +%}
+/// Addition of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the addition
+/// @param rhs right hand side for the addition
+/// @return the sum of the two inputs
+static inline {{type.name}} {{type.prefix}}_add({{type.name}} lhs, {{type.name}} rhs);
+
+/// Saturating addition of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the addition
+/// @param rhs right hand side for the addition
+/// @return the sum of the two inputs
+static inline {{type.name}} {{type.prefix}}_add_sat({{type.name}} lhs, {{type.name}} rhs);
+
+/// Subtraction of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the subtraction
+/// @param rhs right hand side for the subtraction
+/// @return the difference of the two inputs
+static inline {{type.name}} {{type.prefix}}_sub({{type.name}} lhs, {{type.name}} rhs);
+
+/// Saturating subtraction of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the subtraction
+/// @param rhs right hand side for the subtraction
+/// @return the difference of the two inputs
+static inline {{type.name}} {{type.prefix}}_sub_sat({{type.name}} lhs, {{type.name}} rhs);
+
+/// Multiplication of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the multiplication
+/// @param rhs right hand side for the multiplication
+/// @return the product of the two inputs
+static inline {{type.name}} {{type.prefix}}_mul({{type.name}} lhs, {{type.name}} rhs);
+
+/// Saturating multiplication of two {{type.name}} numbers
+///
+/// @param lhs left hand side for the multiplication
+/// @param rhs right hand side for the multiplication
+/// @return the product of the two inputs
+static inline {{type.name}} {{type.prefix}}_mul_sat({{type.name}} lhs, {{type.name}} rhs);
+{% endfor %}
+
+//==========================================================
+// Conversion function implementations
+//==========================================================
+{% for type in types %}
+{% for float in floats +%}
+{{float.name}} {{type.prefix}}_to_{{float.prefix}}({{type.name}} value) {
+    return (({{float.name}})(value.repr) / {#
+        #}({{float.name}})({{type.repr_prefix | upper}}_C(1) << {{type.prefix | upper}}_FRAC_BITS));
+}
+{% endfor %}
+{% endfor %}
+
+// Note: for (sort-of) efficient saturating floating point to fixed conversions, we rely on these
+// integer type limits converted to float and rounded towards zero. These are used instead of
+// fesetround since certain compilers like to reorder casts compared to those function calls so they
+// have no effect. These macros are set by zeroing the LSBs so that the integral max has only as
+// many digits as the floating point mantissa so the exact value is preserved when casting. The
+// signed MIN values are just the negative of the max since calculating the actual minimum is more
+// difficult, and at worst we're one interval off. We compensate for this by only comparing < MIN;
+// values == MIN are converted as usual so if MIN is off by one the results still won't be affected.
+#if FLT_RADIX == 2
+    #if FLT_MANT_DIG >= 64
+        #define MAX_FLT_UINT64 ((float)UINT64_MAX)
+    #else
+        #define MAX_FLT_UINT64 ((float)((UINT64_MAX) & ~((UINT64_C(1) << (64 - FLT_MANT_DIG)) - 1)))
+    #endif
+    #if FLT_MANT_DIG >= 63
+        #define MAX_FLT_INT64 ((float)INT64_MAX)
+        #define MIN_FLT_INT64 ((float)INT64_MIN)
+    #else
+        #define MAX_FLT_INT64 ((float)((INT64_MAX) & ~((UINT64_C(1) << (63 - FLT_MANT_DIG)) - 1)))
+        #define MIN_FLT_INT64 (-MAX_FLT_INT64)
+    #endif
+
+    #if DBL_MANT_DIG >= 64
+        #define MAX_DBL_UINT64 ((double)UINT64_MAX)
+    #else
+        #define MAX_DBL_UINT64 \
+            ((double)((UINT64_MAX) & ~((UINT64_C(1) << (64 - DBL_MANT_DIG)) - 1)))
+    #endif
+    #if DBL_MANT_DIG >= 63
+        #define MAX_DBL_INT64 ((double)INT64_MAX)
+        #define MIN_DBL_INT64 ((double)INT64_MIN)
+    #else
+        #define MAX_DBL_INT64 ((double)((INT64_MAX) & ~((UINT64_C(1) << (63 - DBL_MANT_DIG)) - 1)))
+        #define MIN_DBL_INT64 (-MAX_DBL_INT64)
+    #endif
+
+    #if LDBL_MANT_DIG >= 64
+        #define MAX_LDBL_UINT64 ((long double)UINT64_MAX)
+    #else
+        #define MAX_LDBL_UINT64 \
+            ((long double)((UINT64_MAX) & ~((UINT64_C(1) << (64 - LDBL_MANT_DIG)) - 1)))
+    #endif
+    #if LDBL_MANT_DIG >= 63
+        #define MAX_LDBL_INT64 ((long double)INT64_MAX)
+        #define MIN_LDBL_INT64 ((long double)INT64_MIN)
+    #else
+        #define MAX_LDBL_INT64 \
+            ((long double)((INT64_MAX) & ~((UINT64_C(1) << (63 - LDBL_MANT_DIG)) - 1)))
+        #define MIN_LDBL_INT64 (-MAX_LDBL_INT64)
+    #endif
+#else
+    #error "FLT_RADIX != 2 not currently supported!"
+#endif
+{% for type in types %}
+{% for float in floats +%}
+{{type.name}} {{type.prefix}}_from_{{float.prefix}}({{float.name}} value) {
+    {{type.repr}} repr;
+
+{% if float.name == "long double" %}
+    // Note: clang fails to optimise out call to exp2l, so we use a bit shift instead. A long
+    // double is more than large enough to store the result so the compiler doesn't complain
+    // like it does with float.
+    value = value * ({{type.repr_prefix | upper}}_C(1) << {{type.prefix | upper}}_FRAC_BITS);
+{% else %}
+    value = value * exp2{{float.suffix}}({{type.prefix | upper}}_FRAC_BITS);
+{% endif %}
+{% if type.signed %}
+    value += copysign{{float.suffix}}(0.5{{float.suffix}}, value);
+{% else %}
+    value += 0.5{{float.suffix}};
+{% endif %}
+
+    if (FIX64_UNLIKELY(value > MAX_{{(float.prefix + "_" + type.repr_prefix) | upper}})) {
+        repr = {{type.repr_prefix | upper}}_MAX;
+    } else if (FIX64_UNLIKELY(value < {% if type.signed -%}
+            MIN_{{(float.prefix + "_" + type.repr_prefix) | upper}}
+        {%- else -%}
+            0.0{{float.suffix}}
+        {%- endif -%}
+    )) {
+        repr = {{type.repr_min}};
+    } else {
+        repr = ({{type.repr}})value;
+    }
+
+    return ({{type.name}}){repr};
+}
+{% endfor %}
+{% endfor %}
+
+#undef MAX_LDBL_UINT64
+#undef MAX_LDBL_INT64
+#undef MIN_LDBL_INT64
+#undef MAX_DBL_UINT64
+#undef MAX_DBL_INT64
+#undef MIN_DBL_INT64
+#undef MAX_FLT_UINT64
+#undef MAX_FLT_INT64
+#undef MIN_FLT_INT64
+
+//==========================================================
+// Comparison function implementations
+//==========================================================
+{% for type in types +%}
+int {{type.prefix}}_eq({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr == rhs.repr);
+}
+
+int {{type.prefix}}_neq({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr != rhs.repr);
+}
+
+int {{type.prefix}}_lt({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr < rhs.repr);
+}
+
+int {{type.prefix}}_gt({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr > rhs.repr);
+}
+
+int {{type.prefix}}_lte({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr <= rhs.repr);
+}
+
+int {{type.prefix}}_gte({{type.name}} lhs, {{type.name}} rhs) {
+    return (lhs.repr >= rhs.repr);
+}
+{% endfor %}
+
+//==========================================================
+// Arithmetic function implementations
+//==========================================================
+{% for type in types +%}
+{{type.name}} {{type.prefix}}_add({{type.name}} lhs, {{type.name}} rhs) {
+    return ({{type.name}}){lhs.repr + rhs.repr};
+}
+
+{{type.name}} {{type.prefix}}_add_sat({{type.name}} lhs, {{type.name}} rhs) {
+{% if type.signed %}
+    {{type.repr}} result;
+    // TODO add compiler-agnostic version? Compilers currently produce pretty suboptimal signed
+    // saturation code for any implementation that doesn't use __builtin_*_overflow
+    int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result);
+    if (FIX64_UNLIKELY(overflow)) {
+        result = (rhs.repr < 0) ? {{type.repr_min}} : {{type.repr_prefix | upper}}_MAX;
+    }
+    return ({{type.name}}){result};
+{% else %}
+    {{type.name}} result = {{type.prefix}}_add(lhs, rhs);
+    if (FIX64_UNLIKELY({{type.prefix}}_gt(lhs, result))) {
+        result.repr = {{type.repr_prefix | upper}}_MAX;
+    }
+    return result;
+{% endif %}
+}
+
+{{type.name}} {{type.prefix}}_sub({{type.name}} lhs, {{type.name}} rhs) {
+    return ({{type.name}}){lhs.repr - rhs.repr};
+}
+
+{{type.name}} {{type.prefix}}_sub_sat({{type.name}} lhs, {{type.name}} rhs) {
+{% if type.signed %}
+    {{type.repr}} result;
+    // TODO add compiler-agnostic version? Compilers currently produce pretty suboptimal signed
+    // saturation code for any implementation that doesn't use __builtin_*_overflow
+    int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result);
+    if (FIX64_UNLIKELY(overflow)) {
+        result = (rhs.repr > 0) ? {{type.repr_min}} : {{type.repr_prefix | upper}}_MAX;
+    }
+    return ({{type.name}}){result};
+{% else %}
+    {{type.name}} result = {{type.prefix}}_sub(lhs, rhs);
+    if (FIX64_UNLIKELY({{type.prefix}}_lt(lhs, result))) {
+        result.repr = 0;
+    }
+    return result;
+{% endif %}
+}
+
+{{type.name}} {{type.prefix}}_mul({{type.name}} lhs, {{type.name}} rhs) {
+    {{type.mul_type}} result = (({{type.mul_type}})lhs.repr * rhs.repr);
+    // add to the most significant of the bits that will be shifted away for rounding
+    result += ({{type.repr_prefix | upper}}_C(1) << ({{type.prefix | upper}}_FRAC_BITS - 1));
+    result >>= {{type.prefix | upper}}_FRAC_BITS;
+    return ({{type.name}}){({{type.repr}})result};
+}
+
+{{type.name}} {{type.prefix}}_mul_sat({{type.name}} lhs, {{type.name}} rhs) {
+    {{type.mul_type}} result = (({{type.mul_type}})lhs.repr * rhs.repr);
+    // add to the most significant of the bits that will be shifted away for rounding
+    result += ({{type.repr_prefix | upper}}_C(1) << ({{type.prefix | upper}}_FRAC_BITS - 1));
+    result >>= {{type.prefix | upper}}_FRAC_BITS;
+    if (FIX64_UNLIKELY(result > ({{type.mul_type}}){{type.repr_prefix | upper}}_MAX)) {
+        result = {{type.repr_prefix | upper}}_MAX;
+    } {% if type.signed -%}
+    else if (FIX64_UNLIKELY(result < ({{type.mul_type}}){{type.repr_min}})) {
+        result = {{type.repr_min}};
+    }
+    {%- endif +%}
+    return ({{type.name}}){({{type.repr}})result};
+}
+{% endfor %}
+
+// Undefine internal defines
+#undef FIX64_LIKELY
+#undef FIX64_UNLIKELY
