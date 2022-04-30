@@ -12,14 +12,14 @@
     // won't use branches instead of cmov instructions (it does this with probability >0.99, default
     // for __builtin_expect seems to be 1.0). GCC uses default of probability of 0.9 and uses cmov
     // anyway regardless of probability
-    #define LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
-    #define UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
+    #define FIX64_LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
+    #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
 #elif __has_builtin(__builtin_expect)
-    #define LIKELY(cond) __builtin_expect((cond), 1)
-    #define UNLIKELY(cond) __builtin_expect((cond), 0)
+    #define FIX64_LIKELY(cond) __builtin_expect((cond), 1)
+    #define FIX64_UNLIKELY(cond) __builtin_expect((cond), 0)
 #else
-    #define LIKELY(cond) (cond)
-    #define UNLIKELY(cond) (cond)
+    #define FIX64_LIKELY(cond) (cond)
+    #define FIX64_UNLIKELY(cond) (cond)
 #endif
 
 //==========================================================
@@ -537,9 +537,9 @@ static inline ufix64_t ufix64_from_flt(float value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * exp2f(UFIX64_FRAC_BITS) + 0.5f;
 
-    if (UNLIKELY(value > MAX_FLT_UINT64)) {
+    if (FIX64_UNLIKELY(value > MAX_FLT_UINT64)) {
         repr = UINT64_MAX;
-    } else if (UNLIKELY(value < 0.0f)) {
+    } else if (FIX64_UNLIKELY(value < 0.0f)) {
         repr = 0;
     } else {
         repr = (uint64_t)value;
@@ -554,9 +554,9 @@ static inline ufix64_t ufix64_from_dbl(double value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * exp2(UFIX64_FRAC_BITS) + 0.5;
 
-    if (UNLIKELY(value > MAX_DBL_UINT64)) {
+    if (FIX64_UNLIKELY(value > MAX_DBL_UINT64)) {
         repr = UINT64_MAX;
-    } else if (UNLIKELY(value < 0.0)) {
+    } else if (FIX64_UNLIKELY(value < 0.0)) {
         repr = 0;
     } else {
         repr = (uint64_t)value;
@@ -574,9 +574,9 @@ static inline ufix64_t ufix64_from_ldbl(long double value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * (UINT64_C(1) << UFIX64_FRAC_BITS) + 0.5l;
 
-    if (UNLIKELY(value > MAX_LDBL_UINT64)) {
+    if (FIX64_UNLIKELY(value > MAX_LDBL_UINT64)) {
         repr = UINT64_MAX;
-    } else if (UNLIKELY(value < 0.0l)) {
+    } else if (FIX64_UNLIKELY(value < 0.0l)) {
         repr = 0;
     } else {
         repr = (uint64_t)value;
@@ -591,9 +591,9 @@ static inline fix64_t fix64_from_flt(float value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * exp2f(FIX64_FRAC_BITS) + copysignf(0.5f, value);
 
-    if (UNLIKELY(value > MAX_FLT_INT64)) {
+    if (FIX64_UNLIKELY(value > MAX_FLT_INT64)) {
         repr = INT64_MAX;
-    } else if (UNLIKELY(value < MIN_FLT_INT64)) {
+    } else if (FIX64_UNLIKELY(value < MIN_FLT_INT64)) {
         repr = INT64_MIN;
     } else {
         repr = (int64_t)value;
@@ -608,9 +608,9 @@ static inline fix64_t fix64_from_dbl(double value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * exp2(FIX64_FRAC_BITS) + copysign(0.5, value);
 
-    if (UNLIKELY(value > MAX_DBL_INT64)) {
+    if (FIX64_UNLIKELY(value > MAX_DBL_INT64)) {
         repr = INT64_MAX;
-    } else if (UNLIKELY(value < MIN_DBL_INT64)) {
+    } else if (FIX64_UNLIKELY(value < MIN_DBL_INT64)) {
         repr = INT64_MIN;
     } else {
         repr = (int64_t)value;
@@ -628,9 +628,9 @@ static inline fix64_t fix64_from_ldbl(long double value) {
     // NOLINTNEXTLINE(readability-magic-numbers) add 0.5 for rounding to uint64_t
     value = value * (UINT64_C(1) << UFIX64_FRAC_BITS) + copysignl(0.5l, value);
 
-    if (UNLIKELY(value > MAX_LDBL_INT64)) {
+    if (FIX64_UNLIKELY(value > MAX_LDBL_INT64)) {
         repr = INT64_MAX;
-    } else if (UNLIKELY(value < MIN_LDBL_INT64)) {
+    } else if (FIX64_UNLIKELY(value < MIN_LDBL_INT64)) {
         repr = INT64_MIN;
     } else {
         repr = (int64_t)value;
@@ -711,7 +711,7 @@ static inline ufix64_t ufix64_add(ufix64_t lhs, ufix64_t rhs) {
 
 static inline ufix64_t ufix64_add_sat(ufix64_t lhs, ufix64_t rhs) {
     ufix64_t result = ufix64_add(lhs, rhs);
-    if (UNLIKELY(ufix64_gt(lhs, result))) {
+    if (FIX64_UNLIKELY(ufix64_gt(lhs, result))) {
         result.repr = UINT64_MAX;
     }
     return result;
@@ -723,20 +723,24 @@ static inline ufix64_t ufix64_sub(ufix64_t lhs, ufix64_t rhs) {
 
 static inline ufix64_t ufix64_sub_sat(ufix64_t lhs, ufix64_t rhs) {
     ufix64_t result = ufix64_sub(lhs, rhs);
-    if (UNLIKELY(ufix64_lt(lhs, result))) {
+    if (FIX64_UNLIKELY(ufix64_lt(lhs, result))) {
         result.repr = 0;
     }
     return result;
 }
 
 static inline ufix64_t ufix64_mul(ufix64_t lhs, ufix64_t rhs) {
-    __uint128_t result = ((__uint128_t)lhs.repr * rhs.repr) >> UFIX64_FRAC_BITS;
+    __uint128_t result = ((__uint128_t)lhs.repr * rhs.repr);
+    result += (UINT64_C(1) << (UFIX64_FRAC_BITS - 1)); // add 0x80000000 for rounding
+    result >>= UFIX64_FRAC_BITS;
     return (ufix64_t){(uint64_t)result};
 }
 
 static inline ufix64_t ufix64_mul_sat(ufix64_t lhs, ufix64_t rhs) {
-    __uint128_t result = ((__uint128_t)lhs.repr * rhs.repr) >> UFIX64_FRAC_BITS;
-    if (UNLIKELY(result > (__uint128_t)UINT64_MAX)) {
+    __uint128_t result = ((__uint128_t)lhs.repr * rhs.repr);
+    result += (UINT64_C(1) << (UFIX64_FRAC_BITS - 1)); // add 0x80000000 for rounding
+    result >>= UFIX64_FRAC_BITS;
+    if (FIX64_UNLIKELY(result > (__uint128_t)UINT64_MAX)) {
         result = UINT64_MAX;
     }
     return (ufix64_t){(uint64_t)result};
@@ -751,7 +755,7 @@ static inline fix64_t fix64_add_sat(fix64_t lhs, fix64_t rhs) {
     // TODO add compiler-agnostic version? Compilers currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
     int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result);
-    if (UNLIKELY(overflow)) {
+    if (FIX64_UNLIKELY(overflow)) {
         result = (rhs.repr < 0) ? INT64_MIN : INT64_MAX;
     }
     return (fix64_t){result};
@@ -766,27 +770,31 @@ static inline fix64_t fix64_sub_sat(fix64_t lhs, fix64_t rhs) {
     // TODO add compiler-agnostic version? Compilers currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
     int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result);
-    if (UNLIKELY(overflow)) {
+    if (FIX64_UNLIKELY(overflow)) {
         result = (rhs.repr > 0) ? INT64_MIN : INT64_MAX;
     }
     return (fix64_t){result};
 }
 
 static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
-    __int128_t result = ((__int128_t)lhs.repr * rhs.repr) >> FIX64_FRAC_BITS;
+    __int128_t result = ((__int128_t)lhs.repr * rhs.repr);
+    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1)); // add 0x80000000 for rounding
+    result >>= FIX64_FRAC_BITS;
     return (fix64_t){(int64_t)result};
 }
 
 static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
-    __int128_t result = ((__int128_t)lhs.repr * rhs.repr) >> FIX64_FRAC_BITS;
-    if (UNLIKELY(result > (__int128_t)INT64_MAX)) {
+    __int128_t result = ((__int128_t)lhs.repr * rhs.repr);
+    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1)); // add 0x80000000 for rounding
+    result >>= FIX64_FRAC_BITS;
+    if (FIX64_UNLIKELY(result > (__int128_t)INT64_MAX)) {
         result = INT64_MAX;
-    } else if (UNLIKELY(result < (__int128_t)INT64_MIN)) {
+    } else if (FIX64_UNLIKELY(result < (__int128_t)INT64_MIN)) {
         result = INT64_MIN;
     }
     return (fix64_t){(int64_t)result};
 }
 
 // Undefine internal defines
-#undef LIKELY
-#undef UNLIKELY
+#undef FIX64_LIKELY
+#undef FIX64_UNLIKELY
