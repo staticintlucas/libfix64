@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <float.h>
 #include <math.h>
 #include <stdint.h>
@@ -345,3 +349,7 @@ static inline {{type.name}} {{type.prefix}}_mul_sat({{type.name}} lhs, {{type.na
 // Undefine internal defines
 #undef FIX64_LIKELY
 #undef FIX64_UNLIKELY
+
+#ifdef __cplusplus
+}
+#endif
