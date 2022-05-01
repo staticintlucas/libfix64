@@ -8,8 +8,10 @@ SCRIPTDIR := scripts
 SRCFILES := $(wildcard $(SRCDIR)/*.c)
 OBJFILES := $(SRCFILES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 DEPFILES := $(SRCFILES:$(SRCDIR)/%.c=$(OBJDIR)/%.d)
-JINJAFILES := $(wildcard $(SRCDIR)/*.jinja)
-JINJASRCFILES := $($(wildcard $(SRCDIR)/*.c.jinja):$(SRCDIR)/*.c.jinja=$(JINJADIR)/%.c)
+JINJACFILES := $(wildcard $(SRCDIR)/*.c.jinja)
+JINJAHFILES := $(wildcard $(SRCDIR)/*.h.jinja)
+JINJASRCFILES := $(JINJACFILES:$(SRCDIR)/%.c.jinja=$(JINJADIR)/%.c)
+JINJAHDRFILES := $(JINJAHFILES:$(SRCDIR)/%.h.jinja=$(JINJADIR)/%.h)
 JINJAOBJFILES := $(JINJASRCFILES:$(JINJADIR)/%.c=$(OBJDIR)/%.o)
 JINJADEPFILES := $(JINJASRCFILES:$(JINJADIR)/%.c=$(OBJDIR)/%.d)
 
@@ -25,21 +27,20 @@ default: $(BUILDDIR)/libfix64.a
 $(BUILDDIR)/libfix64.a: $(OBJFILES) $(JINJAOBJFILES) | $(BUILDDIR)
 	$(AR) rcs $@ $^
 
-$(OBJFILES): $(OBJDIR)/%.o: $(SRCDIR)/%.c jinjarender | $(BUILDDIR)
+$(OBJFILES): $(OBJDIR)/%.o: $(SRCDIR)/%.c $(JINJAHDRFILES) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(JINJAOBJFILES): $(OBJDIR)/%.o: $(JINJADIR)/%.c jinjarender | $(BUILDDIR)
+$(JINJAOBJFILES): $(OBJDIR)/%.o: $(JINJADIR)/%.c $(JINJAHDRFILES) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: jinjarender
-jinjarender: $(JINJAFILES) | $(JINJADIR)
-	python3 $(SCRIPTDIR)/jinja_render.py
-
-$(BUILDDIR):
-	mkdir $(BUILDDIR)
+$(JINJASRCFILES) $(JINJAHDRFILES): $(JINJADIR)/%: $(SRCDIR)/%.jinja | $(JINJADIR)
+	python3 $(SCRIPTDIR)/jinja_render.py $< > $@
 
 $(JINJADIR): | $(BUILDDIR)
 	mkdir $(JINJADIR)
+
+$(BUILDDIR):
+	mkdir $(BUILDDIR)
 
 .PHONY: clean
 clean:

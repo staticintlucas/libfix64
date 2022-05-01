@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
+import sys
 from jinja2 import Environment, FileSystemLoader
 from dataclasses import dataclass
 import math
-from typing import Callable
+from pathlib import Path
+
+try:
+    filename = Path(sys.argv[1])
+except IndexError:
+    print(f"Usage: {sys.argv[0]} <jinja file>")
+    sys.exit(1)
 
 @dataclass
 class FixedType:
@@ -64,7 +71,7 @@ consts = [
 ]
 
 env = Environment(loader=FileSystemLoader('src'), trim_blocks=True, lstrip_blocks=True)
-template = env.get_template("fix64.h.jinja")
+template = env.get_template(filename.name)
 template.globals.update({"tofix": lambda flt, frac_bits: int(round(flt * (1 << frac_bits)))})
 
 result = template.render(
@@ -75,7 +82,4 @@ result = template.render(
     consts=consts,
 )
 
-with open("build/jinja/fix64.h", "w") as f:
-    f.write(result)
-    if not result.endswith("\n"):
-        f.write("\n")
+print(result)
