@@ -245,7 +245,21 @@ static inline int {{type.prefix}}_gte({{type.name}} lhs, {{type.name}} rhs) {
 //==========================================================
 // Arithmetic functions
 //==========================================================
-{% for type in types +%}
+{% for type in types %}
+{% if type.signed +%}
+/// Negates a {{type.name}} number. Note: {{type.prefix}}_neg({{type.prefix | upper}}_MIN) returns
+/// {{type.prefix | upper}}_MAX.
+///
+/// @param arg number to negate
+/// @return the negative of arg
+static inline {{type.name}} {{type.prefix}}_neg({{type.name}} arg) {
+    if (FIX64_UNLIKELY(arg.repr < -{{type.repr_max}})) {
+        return {{type.prefix | upper}}_MAX;
+    }
+    return ({{type.name}}){-arg.repr};
+}
+{% endif %}
+
 /// Addition of two {{type.name}} numbers
 ///
 /// @param lhs left hand side for the addition
