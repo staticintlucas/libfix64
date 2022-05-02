@@ -1,0 +1,2 @@
+*.h.jinja linguist-language=C
+*.c.jinja linguist-language=C
