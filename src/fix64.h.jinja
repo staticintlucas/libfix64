@@ -408,6 +408,81 @@ static inline {{type.name}} {{type.prefix}}_div_sat({{type.name}} lhs, {{type.na
 }
 {% endfor %}
 
+//==========================================================
+// Basic math functions
+//==========================================================
+{% for type in types +%}
+/// Rounds down to the nearest integral value less than or equal to the fixed point argument
+///
+/// @param arg the fixed point number to floor
+/// @return the floor of arg
+static inline {{type.name}} {{type.prefix}}_floor({{type.name}} arg) {
+    return ({{type.name}}){({#
+        #}arg.repr >> {{type.prefix | upper}}_FRAC_BITS) << {{type.prefix | upper}}_FRAC_BITS};
+}
+
+/// Rounds up to the nearest integral value greater than or equal to the fixed point argument
+///
+/// @param arg the fixed point number to ceil
+/// @return the ceil of arg
+static inline {{type.name}} {{type.prefix}}_ceil({{type.name}} arg) {
+    return {{type.prefix}}_floor({{type.prefix}}_add(arg, {{type.prefix}}_sub({#
+        #}{{type.prefix | upper}}_ONE, {{type.prefix | upper}}_EPSILON)));
+}
+
+/// Rounds the fixed point argument to the nearest integral value
+///
+/// @param arg the fixed point number to round
+/// @return the rounded value
+static inline {{type.name}} {{type.prefix}}_round({{type.name}} arg) {
+    return {{type.prefix}}_floor({{type.prefix}}_add(arg, {{type.prefix | upper}}_HALF));
+}
+
+/// Rounds the fixed point number towards zero
+///
+/// @param arg the fixed point number to truncate
+/// @return the truncated value
+static inline {{type.name}} {{type.prefix}}_trunc({{type.name}} arg) {
+    if ({{type.prefix}}_lt(arg, {{type.prefix | upper}}_ZERO)) {
+        return {{type.prefix}}_ceil(arg);
+    } else {
+        return {{type.prefix}}_floor(arg);
+    }
+}
+{% if type.signed +%}
+/// Absolute value of a {{type.name}} number. Note: {{type.prefix}}_abs({{type.prefix | upper}}_MIN)
+/// returns {{type.prefix | upper}}_MAX.
+///
+/// @param arg fixed point number
+/// @return absolute value of arg
+static inline {{type.name}} {{type.prefix}}_abs({{type.name}} arg) {
+    if ({{type.prefix}}_lt(arg, {{type.prefix | upper}}_ZERO)) {
+        return {{type.prefix}}_neg(arg);
+    } else {
+        return arg;
+    }
+}
+{% endif %}
+
+/// Returns the greater of two {{type.name}} numbers
+///
+/// @param x a fixed point number
+/// @param y the other fixed point number
+/// @return the greater of x and y
+static inline {{type.name}} {{type.prefix}}_max({{type.name}} x, {{type.name}} y) {
+    return {{type.prefix}}_gt(x, y) ? x : y;
+}
+
+/// Returns the lesser of two {{type.name}} numbers
+///
+/// @param x a fixed point number
+/// @param y the other fixed point number
+/// @return the lesser of x and y
+static inline {{type.name}} {{type.prefix}}_min({{type.name}} x, {{type.name}} y) {
+    return {{type.prefix}}_lt(x, y) ? x : y;
+}
+{% endfor %}
+
 // Undefine internal defines
 #undef FIX64_LIKELY
 #undef FIX64_UNLIKELY
