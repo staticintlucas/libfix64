@@ -380,13 +380,21 @@ static inline {{type.name}} {{type.prefix}}_div({{type.name}} lhs, {{type.name}}
 }
 
 /// Saturating division of two {{type.name}} numbers. Result is rounded to the nearest representable
-/// value
+/// value. If the divisor is 0 returns {{type.prefix | upper}}_MAX {% if type.signed %} or {{type.prefix | upper}}_MAX
+/// depending on the sign of the dividend {% endif %}
 ///
 /// @param lhs left hand side for the division
 /// @param rhs right hand side for the division
 /// @return the quotient of the two inputs
 static inline {{type.name}} {{type.prefix}}_div_sat({{type.name}} lhs, {{type.name}} rhs) {
     {{type.mul_type}} dividend = (({{type.mul_type}})lhs.repr << {{type.prefix | upper}}_FRAC_BITS);
+    if (FIX64_UNLIKELY(rhs.repr == 0)) {
+{% if type.signed %}
+        return (lhs.repr > 0) ? {{type.prefix | upper}}_MAX : {{type.prefix | upper}}_MIN;
+{% else %}
+        return {{type.prefix | upper}}_MAX;
+{% endif %}
+    }
 {% if type.signed %}
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
