@@ -1,0 +1,133 @@
+{#- jinja2 template for fix64.c -#}
+
+{{autogen_comment}}
+
+#include "fix64.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+
+// Number of iterations
+#define CORDIC_TRIG_NUM_ITER {{cordic.trig.num_iter}}
+// Number fractional bits
+#define CORDIC_TRIG_FRAC_BITS {{cordic.trig.frac_bits}}
+// Scaling constant K
+#define CORDIC_TRIG_K INT64_C({{"0x%016x" | format(tofixcordic(cordic.trig.k))}})
+
+// Q1.62 angle normalised so that 1.0 = 90deg = pi/2
+#define CORDIC_PI_4 (INT64_C(1) << (CORDIC_TRIG_FRAC_BITS - 1))
+
+// This is the value of atan(exp2(-i-1)) as a Q1.62 fixed point and scaled so 1.0 = 90deg = pi/2
+static const int64_t cordic_trig_atans[{{cordic.trig.num_iter}}] = {
+{% for atan in cordic.trig.atans %}
+    INT64_C({{"0x%016x" | format(tofixcordic(atan))}}),
+{% endfor %}
+};
+
+// CORDIC returns both the x and y (sine and cosine) at once. We need both for efficiently
+// calculating the tangent, so we use this return type to return both
+typedef struct {
+    int64_t cos;
+    int64_t sin;
+} cordic_trig_result_t;
+
+// CORDIC algorithm implementation for computing sine and cosine of an angle. Only valid for the
+// first quadrant. Designed to work on Q1.62 fixed point values for accuracy. Using Q31.32 values
+// we can only get ~29 fractional bits of accuracy as rounding errors accumulate. Besides the
+// Q31.32's full range is not needed. This implementation skips the first iteration compared to most
+// other implementations by assuming the angle is in the range 0 <= a <= pi/2 rather than the more
+// common -pi/2 <= a <= pi/2. This allows us to use the result of what is normally the first
+// iteration as initial values for the variables. It also means the first LUT value is skipped
+// compared to other implementations
+static cordic_trig_result_t cordic_trig_impl(int64_t angle) {
+    // K is the scaling constant which most cordic implementations multiply by at the end. By
+    // seeding x and y values with K rather than 1 we get the same result and it saves us a
+    // multiplication at the end
+    int64_t x = CORDIC_TRIG_K;
+    int64_t y = CORDIC_TRIG_K;
+    int64_t oldx;
+
+    for (size_t i = 1; i <= CORDIC_TRIG_NUM_ITER; i++) {
+        oldx = x;
+
+        // Note: this can be implemented branchless by using with a 'sign' variable which stores
+        // either +1 or -1 and is multiplied by the values, but it is ~12% slower in my testing.
+        // Guess branch predictors are pretty solid these days ¯\_(ツ)_/¯
+        if (angle < CORDIC_PI_4) {
+            x += y >> i;
+            y -= oldx >> i;
+            angle += cordic_trig_atans[i - 1];
+        } else {
+            x -= y >> i;
+            y += oldx >> i;
+            angle -= cordic_trig_atans[i - 1];
+        }
+    }
+
+    return (cordic_trig_result_t){x, y};
+}
+{% for type in types %}
+// Returns the angle as a Q1.62 type, normalised so that 1.0 = pi/2 = 90deg. Angle is always
+// measured from the x-axis, returning between 0.0 and 1.0. The quadrant pointer is set to the
+// quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
+static inline {{type.repr}} {{type.name}}_norm_angle({{type.name}} angle, int *quadrant) {
+    // Use this instead of {{type.prefix | upper}}_2_PI for accuracy
+    const int64_t q0_62_2_pi = INT64_C({{"0x%012x" | format(
+        ((2 / consts.pi.value) * (2 ** cordic.trig.frac_bits)) | round | int)}}); // Q0.62 2/pi
+
+    // Note: 64x64=128 bit multiplication can be done in 1 instruction on x86-64 or 2 on ARM
+    // a is now normalised so that 1.0 = pi/2 = 90deg
+    __int128_t a = (__int128_t)angle.repr * q0_62_2_pi; // Q31.94
+
+    // Normalised constants in Q3.94 format
+    const __int128_t cordic_pi_2 = (((__int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type.prefix | upper}}_FRAC_BITS));
+    const __int128_t cordic_pi = (((__int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type.prefix | upper}}_FRAC_BITS + 1));
+    const __int128_t cordic_2pi = (((__int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type.prefix | upper}}_FRAC_BITS + 2));
+
+    // Note: this % should be optimised to a bitwise and by the compiler
+    a %= cordic_2pi; // Q3.94 - normalised between -4.0 and 4.0 (-2pi and 2pi)
+
+    // Normalise between -2.0 and 2.0 (-pi and pi)
+    if (a > cordic_pi) {
+        a -= cordic_2pi; // Q2.94
+    } else if (a < -cordic_pi) {
+        a += cordic_2pi; // Q2.94
+    }
+
+    quadrant = 0;
+    if (a < 0) {
+        quadrant += 2;
+        a += cordic_pi; // UQ2.94
+    }
+    if (a > cordic_pi_2) {
+        quadrant += 1;
+        a = cordic_pi - a; // UQ1.94
+    }
+
+    a += (((__int128_t)1) << ({{type.prefix | upper}}_FRAC_BITS - 1)); // for rounding
+    a >>= {{type.prefix | upper}}_FRAC_BITS; // UQ1.62
+
+    return ({{type.repr}})a;
+}
+
+{% for func in ["sin", "cos"] +%}
+{{type.name}} {{type.prefix}}_{{func}}({{type.name}} angle) {
+    int quadrant = 0;
+    int64_t norm_a = {{type.name}}_norm_angle(angle, &quadrant);
+
+    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a);
+
+    int64_t result = cordic_result.{{func}}; // Q1.62
+    result += (INT64_C(1) << (CORDIC_TRIG_FRAC_BITS - {{type.prefix | upper}}_FRAC_BITS - 1)); // rounding
+    result >>= (CORDIC_TRIG_FRAC_BITS - {{type.prefix | upper}}_FRAC_BITS); // Q32.32
+
+    if (quadrant >= 2) {
+        result = -result;
+    }
+
+    return ({{type.name}}){result};
+}
+{% endfor %}
+{% endfor %}

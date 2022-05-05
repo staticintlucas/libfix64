@@ -1,6 +1,6 @@
 {#- jinja2 template for fix64.h -#}
 
-{{header_comment}}
+{{autogen_comment}}
 
 #pragma once
 
@@ -75,16 +75,16 @@ typedef struct {
 // Constants
 //==========================================================
 {% for type in types +%}
-{% for num in nums %}
+{% for num_name, num in nums.items() %}
 /// {{type.name}} constant value {{num.string}}
-#define {{type.prefix | upper}}_{{num.name | upper}} (({{type.name}}){ {#-
-    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(num.value, type.frac_bits))}})})
+#define {{type.prefix | upper}}_{{num_name | upper}} (({{type.name}}){ {#-
+    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(num.value))}})})
 {% endfor %}
 
-{% for const in consts %}
+{% for const_name, const in consts.items() %}
 /// {{type.name}} mathematical constant {{const.string}}
-#define {{type.prefix | upper}}_{{const.name | upper}} (({{type.name}}){ {#-
-    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(const.value, type.frac_bits))}})})
+#define {{type.prefix | upper}}_{{const_name | upper}} (({{type.name}}){ {#-
+    #}{{type.repr_prefix | upper}}_C({{ "0x%x" | format(tofix(const.value))}})})
 {% endfor %}
 {% endfor %}
 
@@ -489,6 +489,29 @@ static inline {{type.name}} {{type.prefix}}_max({{type.name}} x, {{type.name}} y
 static inline {{type.name}} {{type.prefix}}_min({{type.name}} x, {{type.name}} y) {
     return {{type.prefix}}_lt(x, y) ? x : y;
 }
+{% endfor %}
+
+//==========================================================
+// Trigonometric functions
+//==========================================================
+{% for type in types +%}
+/// Computes the sine of a given angle
+///
+/// @param angle the angle
+/// @return the sine of the angle
+{{type.name}} {{type.prefix}}_sin({{type.name}} angle);
+
+/// Computes the cosine of a given angle
+///
+/// @param angle the angle
+/// @return the cosine of the angle
+{{type.name}} {{type.prefix}}_cos({{type.name}} angle);
+
+/// Computes the tangent of a given angle
+///
+/// @param angle the angle
+/// @return the tangent of the angle
+{{type.name}} {{type.prefix}}_tan({{type.name}} angle);
 {% endfor %}
 
 // Undefine internal defines
