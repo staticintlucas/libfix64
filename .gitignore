@@ -1,6 +1,11 @@
 # Build dir
 build/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Prerequisites
 *.d
 
