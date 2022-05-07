@@ -74,8 +74,7 @@ static cordic_trig_result_t cordic_trig_impl(int64_t angle) {
 // quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
 static inline {{type.repr}} {{type.name}}_norm_angle({{type.name}} angle, int *quadrant) {
     // Use this instead of {{type.prefix | upper}}_2_PI for accuracy
-    const int64_t q0_62_2_pi = INT64_C({{"0x%012x" | format(
-        ((2 / consts.pi.value) * (2 ** cordic.trig.frac_bits)) | round | int)}}); // Q0.62 2/pi
+    const int64_t q0_62_2_pi = INT64_C({{"0x%012x" | format(tofixcordic(2 / consts.pi.value))}}); // Q0.62 2/pi
 
     // Note: 64x64=128 bit multiplication can be done in 1 instruction on x86-64 or 2 on ARM
     // a is now normalised so that 1.0 = pi/2 = 90deg
@@ -96,20 +95,20 @@ static inline {{type.repr}} {{type.name}}_norm_angle({{type.name}} angle, int *q
         a += cordic_2pi; // Q2.94
     }
 
-    quadrant = 0;
+    *quadrant = 0;
     if (a < 0) {
-        quadrant += 2;
+        *quadrant += 2;
         a += cordic_pi; // UQ2.94
     }
     if (a > cordic_pi_2) {
-        quadrant += 1;
+        *quadrant += 1;
         a = cordic_pi - a; // UQ1.94
     }
 
     a += (((__int128_t)1) << ({{type.prefix | upper}}_FRAC_BITS - 1)); // for rounding
     a >>= {{type.prefix | upper}}_FRAC_BITS; // UQ1.62
 
-    return ({{type.repr}})a;
+    return (int64_t)a;
 }
 
 {% for func in ["sin", "cos"] +%}
