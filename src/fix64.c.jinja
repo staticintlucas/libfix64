@@ -69,6 +69,7 @@ static cordic_trig_result_t cordic_trig_impl(int64_t angle) {
     return (cordic_trig_result_t){x, y};
 }
 {% for type_name, type in types.items() %}
+
 // Returns the angle as a Q1.62 type, normalised so that 1.0 = pi/2 = 90deg. Angle is always
 // measured from the x-axis, returning between 0.0 and 1.0. The quadrant pointer is set to the
 // quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
@@ -110,21 +111,50 @@ static inline {{type.repr}} {{type_name}}_norm_angle({{type_name}} angle, int *q
 
     return (int64_t)a;
 }
+{% for func in ["sin", "cos", "tan"] %}
 
-{% for func in ["sin", "cos"] +%}
 {{type_name}} {{type.prefix}}_{{func}}({{type_name}} angle) {
     int quadrant = 0;
-    int64_t norm_a = {{type_name}}_norm_angle(angle, &quadrant);
+    int64_t norm_a = {{type_name}}_norm_angle(angle, &quadrant); // Q1.62
 
-    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a);
+    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
 
+{% if func in ["sin", "cos"] %}
     int64_t result = cordic_result.{{func}}; // Q1.62
     result += (INT64_C(1) << (CORDIC_TRIG_FRAC_BITS - {{type.prefix | upper}}_FRAC_BITS - 1)); // rounding
     result >>= (CORDIC_TRIG_FRAC_BITS - {{type.prefix | upper}}_FRAC_BITS); // Q32.32
 
+{% if func == "sin" %}
     if (quadrant >= 2) {
         result = -result;
     }
+{% else %}
+    if (quadrant == 1 || quadrant == 2) {
+        result = -result;
+    }
+{% endif %}
+
+{% else %}
+    int64_t result;
+    if (FIX64_UNLIKELY(cordic_result.cos == 0)) {
+        result = (cordic_result.sin < 0) ? INT64_MIN : INT64_MAX;
+    } else {
+        __int128_t dividend = ((__int128_t)cordic_result.sin << CORDIC_TRIG_FRAC_BITS);
+        if ((cordic_result.sin < 0) == (cordic_result.cos < 0)) {
+            dividend += cordic_result.cos / 2; // if signs are same -> result is positive -> add for rounding
+        } else {
+            dividend -= cordic_result.cos / 2; // else subtract for rounding
+        }
+        dividend /= cordic_result.cos;
+
+        if (FIX64_UNLIKELY(dividend > (__int128_t){{type.repr_max}})) {
+            dividend = {{type.repr_max}};
+        } else if (FIX64_UNLIKELY(dividend < (__int128_t){{type.repr_min}})) {
+            dividend = {{type.repr_min}};
+        }
+        result = ({{type.repr}})dividend;
+    }
+{% endif %}
 
     return ({{type_name}}){result};
 }
