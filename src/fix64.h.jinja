@@ -453,19 +453,23 @@ static inline {{type}} {{prefix}}_min({{type}} x, {{type}} y) {
 // Trigonometric functions
 //==========================================================
 
-/// Computes the sine of a given angle
+/// Computes the sine of a given angle. The result is accurate to within ±{{macro}}_EPSILON
 ///
 /// @param angle the angle
 /// @return the sine of the angle
 {{type}} {{prefix}}_sin({{type}} angle);
 
-/// Computes the cosine of a given angle
+/// Computes the cosine of a given angle. The result is accurate to within ±{{macro}}_EPSILON
 ///
 /// @param angle the angle
 /// @return the cosine of the angle
 {{type}} {{prefix}}_cos({{type}} angle);
 
-/// Computes the tangent of a given angle
+/// Computes the tangent of a given angle. The result is accurate to within ±{{macro}}_EPSILON for
+/// angles not in the ranges -0.52π..-0.48π and 0.48π..0.52π. Near to the singlularities at ±π/2 the
+/// absolute error increases. The relative error remains small (less than 1e-6) for all values a
+/// outside -(π/2 + 1e-6)..-(π/2 - 1e-6) and (π/2 - 1e-6)..(π/2 + 1e-6). Large values are saturated
+/// at {{macro}}_MAX or {{macro}}_MIN depending on the quadrant
 ///
 /// @param angle the angle
 /// @return the tangent of the angle

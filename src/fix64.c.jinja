@@ -100,7 +100,7 @@ static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
         *quadrant += 2;
         a += cordic_pi; // UQ2.94
     }
-    if (a > cordic_pi_2) {
+    if (a >= cordic_pi_2) {
         *quadrant += 1;
         a = cordic_pi - a; // UQ1.94
     }
@@ -111,51 +111,59 @@ static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
     return ({{repr.name}})a;
 }
 
-{% for func in ["sin", "cos", "tan"] %}
+{% for func in ["sin", "cos"] %}
 {{type}} {{prefix}}_{{func}}({{type}} angle) {
     int quadrant = 0;
     {{repr.name}} norm_a = norm_angle(angle, &quadrant); // Q1.62
 
     cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
 
-{% if func in ["sin", "cos"] %}
     {{repr.name}} result = cordic_result.{{func}}; // Q1.62
     result += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS - 1)); // rounding
     result >>= (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS); // Q32.32
 
-{%   if func == "sin" %}
-    if (quadrant >= 2) {
+{% if func == "sin" %}
+    if (quadrant >= 2) { // Quadrant 2 or 3 (zero-indexed)
         result = -result;
     }
-{%   else %}
-    if (quadrant == 1 || quadrant == 2) {
+{% elif func == "cos" %}
+    if (quadrant == 1 || quadrant == 2) { // Quadrant 1 or 2 (zero-indexed)
         result = -result;
-    }
-{%   endif %}
-
-{% else %}
-    {{repr.name}} result;
-    if (FIX64_UNLIKELY(cordic_result.cos == 0)) {
-        result = (cordic_result.sin < 0) ? {{repr.min}} : {{repr.max}};
-    } else {
-        int128_t dividend = ((int128_t)cordic_result.sin << CORDIC_TRIG_FRAC_BITS);
-        if ((cordic_result.sin < 0) == (cordic_result.cos < 0)) {
-            dividend += cordic_result.cos / 2; // if signs are same -> result is positive -> add for rounding
-        } else {
-            dividend -= cordic_result.cos / 2; // else subtract for rounding
-        }
-        dividend /= cordic_result.cos;
-
-        if (FIX64_UNLIKELY(dividend > (int128_t){{repr.max}})) {
-            dividend = {{repr.max}};
-        } else if (FIX64_UNLIKELY(dividend < (int128_t){{repr.min}})) {
-            dividend = {{repr.min}};
-        }
-        result = ({{repr.name}})dividend;
     }
 {% endif %}
 
     return ({{type}}){result};
 }
 
-{% endfor %}
+{% endfor -%}
+
+{{type}} {{prefix}}_tan({{type}} angle) {
+    int quadrant = 0;
+    {{repr.name}} norm_a = norm_angle(angle, &quadrant); // Q1.62
+    int negate = quadrant % 2; // Quadrant 1 or 3 are negative (zero-indexed)
+
+    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
+
+    {{repr.name}} result;
+    if (FIX64_UNLIKELY(cordic_result.cos == 0)) {
+        result = negate ? {{repr.min}} : {{repr.max}};
+    } else {
+        int128_t dividend = ((int128_t)cordic_result.sin << CORDIC_TRIG_FRAC_BITS); // Q1.124
+        if ((cordic_result.sin < 0) == (cordic_result.cos < 0)) {
+            dividend += cordic_result.cos / 2; // if signs are same -> result is positive -> add for rounding
+        } else {
+            dividend -= cordic_result.cos / 2; // else subtract for rounding
+        }
+        dividend /= cordic_result.cos; // Q63.62
+        dividend += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS - 1)); // rounding
+        dividend >>= (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS); // Q63.32
+
+        if (FIX64_UNLIKELY(dividend > (int128_t){{repr.max}} || dividend < (int128_t){{repr.min}})) {
+            result = negate ? {{repr.min}} : {{repr.max}};
+        } else {
+            result = negate ? -dividend : dividend;
+        }
+    }
+
+    return ({{type}}){result};
+}
