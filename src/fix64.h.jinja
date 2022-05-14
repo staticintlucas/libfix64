@@ -83,13 +83,13 @@ typedef struct {
 {% for name, num in nums.items() %}
 /// {{type}} constant value {{num.string}}
 #define {{macro}}_{{name | upper}} {{ " " * (4 - (name | length)) -}}
-    (({{type}}){ {{-repr.const("0x%09x" | format(tofix(num.value)))}}})
+    (({{type}}){ {{-const(num.value, 9)}}})
 {% endfor %}
 
-{% for name, const in consts.items() %}
-/// {{type}} mathematical constant {{const.string}}
+{% for name, num in consts.items() %}
+/// {{type}} mathematical constant {{num.string}}
 #define {{macro}}_{{name | upper}} {{ " " * (8 - (name | length)) -}}
-    (({{type}}){ {{-repr.const("0x%09x" | format(tofix(const.value)))}}})
+    (({{type}}){ {{-const(num.value, 9)}}})
 {% endfor %}
 
 //==========================================================

@@ -14,15 +14,15 @@
 // Number fractional bits
 #define CORDIC_TRIG_FRAC_BITS {{cordic.trig.frac_bits}}
 // Scaling constant K
-#define CORDIC_TRIG_K         {{ repr.const("0x%016x" | format(tofixcordic(cordic.trig.k))) }}
+#define CORDIC_TRIG_K {{cordic.const(cordic.trig.k)}}
 
 // Q1.62 angle normalised so that 1.0 = 90deg = pi/2
-#define CORDIC_PI_4           ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - 1))
+#define CORDIC_PI_4 {{cordic.const(0.5)}}
 
 // This is the value of atan(exp2(-i-1)) as a Q1.62 fixed point and scaled so 1.0 = 90deg = pi/2
 static const {{repr.name}} cordic_trig_atans[{{cordic.trig.num_iter}}] = {
 {% for atan in cordic.trig.atans %}
-    {{ repr.const("0x%016x" | format(tofixcordic(atan))) }},
+    {{cordic.const(atan, 16)}},
 {% endfor %}
 };
 
@@ -74,7 +74,7 @@ static cordic_trig_result_t cordic_trig_impl({{repr.name}} angle) {
 // quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
 static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
     // Use this instead of {{macro}}_2_PI for accuracy
-    const {{repr.name}} q0_62_2_pi = {{ repr.const("0x%012x" | format(tofixcordic(2 / consts.pi.value)))}}; // Q0.62 2/pi
+    const {{repr.name}} q0_62_2_pi = {{cordic.const(2 / consts.pi.value)}}; // Q0.62 2/pi
 
     // Note: 64x64=128 bit multiplication can be done in 1 instruction on x86-64 or 2 on ARM
     // a is now normalised so that 1.0 = pi/2 = 90deg
