@@ -34,7 +34,8 @@ $(JINJAOBJFILES): $(OBJDIR)/%.o: $(JINJADIR)/%.c $(JINJAHDRFILES) | $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(JINJASRCFILES) $(JINJAHDRFILES): $(JINJADIR)/%: $(SRCDIR)/%.jinja | $(JINJADIR)
-	python3 $(SCRIPTDIR)/jinja_render.py $< > $@
+	python3 $(SCRIPTDIR)/jinja_render.py $< > $@~
+	mv -f $@~ $@
 
 $(JINJADIR): | $(BUILDDIR)
 	mkdir $(JINJADIR)
