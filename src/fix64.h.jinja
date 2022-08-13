@@ -47,25 +47,26 @@ extern "C" {
 
 /// Signed fixed point Q{{int_bits}}.{{frac_bits}} type
 typedef struct {
-    {{repr.name}} repr;
-} {{type}};
+    {{repr.type}}_t repr;
+} {{type}}_t;
 
 //==========================================================
 // Defines
 //==========================================================
 
-/// Number of fractional bits for {{type}}
-#define {{macro}}_FRAC_BITS {{frac_bits}}
-/// Number of integral bits for {{type}} (excluding sign bit)
-#define {{macro}}_INT_BITS  {{int_bits}}
-/// Number of significant bits for {{type}} (excluding sign bit)
-#define {{macro}}_BITS      ({{macro}}_INT_BITS + {{macro}}_FRAC_BITS)
-/// Maximum value for a {{type}}
-#define {{macro}}_MAX       (({{type}}){ {{-repr.max-}} })
-/// Minimum value for a {{type}}
-#define {{macro}}_MIN       (({{type}}){ {{-repr.min-}} })
-/// Smallest positive non-zero value for {{type}}
-#define {{macro}}_EPSILON   (({{type}}){1})
+/// Number of fractional bits for {{type}}_t
+#define {{type | upper}}_FRAC_BITS {{frac_bits}}
+/// Number of integral bits for {{type}}_t (excluding sign bit)
+#define {{type | upper}}_INT_BITS  {{int_bits}}
+/// Number of significant bits for {{type}}_t (excluding sign bit)
+#define {{type | upper}}_BITS      ({{type | upper}}_INT_BITS + {{type | upper}}_FRAC_BITS)
+/// Maximum value for a {{type}}_t
+#define {{type | upper}}_MAX       (({{type}}_t){ {{-repr.type | upper}}_MAX})
+/// Minimum value for a {{type}}_t
+#define {{type | upper}}_MIN       (({{type}}_t){ {{-repr.type | upper}}_MIN})
+/// Smallest positive non-zero value for {{type}}_t
+#define {{type | upper}}_EPSILON   (({{type}}_t){ {{-repr.const(1, "d")}}})
+
 
 //==========================================================
 // Literals
@@ -73,23 +74,24 @@ typedef struct {
 
 // This function call will be inlined by the compiler, Clang 13 does this even with -Og
 
-/// Creates a {{type}} literal, for example {{macro}}_C(2.5)
-#define {{macro}}_C(x) ({{prefix}}_from_ldbl((long double)(x##L)))
+/// Creates a {{type}}_t literal, for example {{type | upper}}_C(2.5)
+#define {{type | upper}}_C(x) ({{type}}_from_ldbl((long double)(x##L)))
 
 //==========================================================
 // Constants
 //==========================================================
 
-{% for name, num in nums.items() %}
-/// {{type}} constant value {{num.string}}
-#define {{macro}}_{{name | upper}} {{ " " * (4 - (name | length)) -}}
-    (({{type}}){ {{-const(num.value, 9)}}})
+{% for name, value in nums.items() %}
+/// {{type}}_t constant {{value}}
+#define {{type | upper}}_{{name | upper}} {{" " * (9 - (name | length))-}}
+    (({{type}}_t){ {{-const(value, "x", 9)}}})
 {% endfor %}
 
-{% for name, num in consts.items() %}
-/// {{type}} mathematical constant {{num.string}}
-#define {{macro}}_{{name | upper}} {{ " " * (8 - (name | length)) -}}
-    (({{type}}){ {{-const(num.value, 9)}}})
+{% for expr, value in consts.items() %}
+/// {{type}}_t mathematical constant {{expr}}
+{% set name = expr | replace("_", "") | replace("(", "") | replace(")", "") | replace("/", "_") %}
+#define {{type | upper}}_{{name | upper}} {{" " * (9 - (name | length))-}}
+    (({{type}}_t){ {{-const(value, "x", 9)}}})
 {% endfor %}
 
 //==========================================================
@@ -98,10 +100,10 @@ typedef struct {
 
 // _Generic is only available since C11
 #if __STDC_VERSION__ >= 201112L
-/// Generic macro to convert a floating point type to {{type}}
-#define {{prefix}}_from(x) _Generic((x), \
-{% for name, float in floats.items() %}
-        {{name}}: {{prefix}}_from_{{float.prefix}}, \
+/// Generic macro to convert a floating point type to {{type}}_t
+#define {{type}}_from(x) _Generic((x), \
+{% for ftype, fprops in float_types.items() %}
+        {{ftype}}: {{type}}_from_{{fprops.short}}, \
 {% endfor %}
     )(x)
 #endif
@@ -110,63 +112,62 @@ typedef struct {
 // Conversion functions
 //==========================================================
 
-{% for name, float in floats.items() %}
-/// Converts a {{type}} to {{name}}
+{% for ftype, fprops in float_types.items() %}
+/// Converts a {{ftype}} to {{type}}_t
 ///
-/// @param value the {{type}} value to convert
-/// @return converted {{name}} value
-static inline {{name}} {{prefix}}_to_{{float.prefix}}({{type}} value) {
-    return (({{name}})(value.repr) / ({{name}})({{repr.const(1)}} << {{macro}}_FRAC_BITS));
+/// @param value the {{ftype}} value to convert
+/// @return converted {{type}}_t value
+static inline {{ftype}} {{type}}_to_{{fprops.short}}({{type}}_t value) {
+    return (({{ftype}})(value.repr) / ({{ftype}})({{repr.const(1)}} << {{type | upper}}_FRAC_BITS));
 }
 
 {% endfor -%}
 
-// Note: for (sort-of) efficient saturating floating point to fixed conversions, we rely on integer
-// type limits converted to float and rounded towards zero. These are used instead of fesetround()
-// since certain compilers (GCC for example) will reorder float casts so it may well not be between
-// a pair of fesetround calls. The limits are set by zeroing the LSBs so that the integral max has
-// only as many significant bits as the floating point mantissa so the exact value is preserved when
-// casting. The signed min values are just the negative of the max since calculating the actual
-// minimum is pretty tricky. At worst we're one interval off, so we can compensate for this by only
-// comparing < min; values == min are converted as usual so if min is off by one the results still
-// won't be affected.
+// Note: for (sort-of) efficient float to fixed saturating conversions, we rely on integer limits
+// converted to float and rounded towards zero. Unfortunately compilers don't have good support for
+// fesetround (GCC for example will reorder fesetround calls relative to float casts). Instead the
+// limits are calculated by zeroing the LSBs of the integral max so that has as many significant
+// bits as the floating point mantissa. This way the exact value is preserved when casting. The
+// min is currently just set as -max since calculating the actual minimum is more tricky. At worst
+// we're one interval off, but we can compensate for this by only comparing < min when saturating.
+// Values == min are converted as usual so if min is off-by-one the result won't be.
 
-{% for name, float in floats.items() %}
-/// Converts a {{name}} to {{type}}
+{% for ftype, fprops in float_types.items() %}
+/// Converts a {{ftype}} to {{type}}_t
 ///
-/// Saturates if input is outside of {{type}}'s range. Undefined behaviour if input is NaN
+/// Saturates if input is outside of {{type}}_t's range. Undefined behaviour if input is NaN
 ///
-/// @param value the {{name}} value to convert
-/// @return converted {{type}} value
-static inline {{type}} {{prefix}}_from_{{float.prefix}}({{name}} value) {
-#if {{float.macro}}_MANT_DIG >= ({{macro}}_BITS)
-    static const {{name}} max = {{repr.max}};
-    static const {{name}} min = {{repr.min}};
+/// @param value the {{ftype}} value to convert
+/// @return converted {{type}}_t value
+static inline {{type}}_t {{type}}_from_{{fprops.short}}({{ftype}} value) {
+#if {{fprops.short | upper}}_MANT_DIG >= {{type | upper}}_BITS
+    static const {{ftype}} max = {{repr.type | upper}}_MAX;
+    static const {{ftype}} min = {{repr.type | upper}}_MIN;
 #else
-    static const {{name}} max = ({{repr.max}} & {#
-        #}~(({{repr.const(1)}} << ({{macro}}_BITS - {{float.macro}}_MANT_DIG)) - 1));
-    static const {{name}} min = -max;
+    static const {{ftype}} max = ({{repr.type | upper}}_MAX & ~(({{repr.const(1, "d")}} << {#
+        #}({{type | upper}}_BITS - {{fprops.short | upper}}_MANT_DIG)) - 1));
+    static const {{ftype}} min = -max;
 #endif
-{% if name == "long double" %}
+{% if ftype == "long double" %}
     // Note: clang fails to optimise out call to exp2l, so we use a bit shift instead. A long
     // double is more than large enough to store the result so the compiler doesn't complain
     // like it does with float (even though float can accurately hold any power of 2 too).
-    value = value * ({{repr.const(1)}} << {{macro}}_FRAC_BITS);
+    value = value * ({{repr.const(1)}} << {{type | upper}}_FRAC_BITS);
 {% else %}
-    value = value * exp2{{float.suffix}}({{macro}}_FRAC_BITS);
+    value = value * exp2{{fprops.suffix}}({{type | upper}}_FRAC_BITS);
 {% endif %}
-    value += copysign{{float.suffix}}(0.5{{float.suffix}}, value);
+    value += copysign{{fprops.suffix}}(0.5{{fprops.suffix}}, value);
 
-    {{repr.name}} repr;
+    {{repr.type}}_t repr;
     if (FIX64_UNLIKELY(value > max)) {
-        repr = {{repr.max}};
+        repr = {{repr.type | upper}}_MAX;
     } else if (FIX64_UNLIKELY(value < min)) {
-        repr = {{repr.min}};
+        repr = {{repr.type | upper}}_MIN;
     } else {
-        repr = ({{repr.name}})value;
+        repr = ({{repr.type}}_t)value;
     }
 
-    return ({{type}}){repr};
+    return ({{type}}_t){repr};
 }
 
 {% endfor -%}
@@ -175,57 +176,57 @@ static inline {{type}} {{prefix}}_from_{{float.prefix}}({{name}} value) {
 // Comparison functions
 //==========================================================
 
-/// Compares two {{type}} values for equality
+/// Compares two {{type}}_t values for equality
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if the values are equal, 0 otherwise
-static inline int {{prefix}}_eq({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_eq({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr == rhs.repr);
 }
 
-/// Compares two {{type}} values for inequality
+/// Compares two {{type}}_t values for inequality
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if the values are not equal, 0 otherwise
-static inline int {{prefix}}_neq({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_neq({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr != rhs.repr);
 }
 
-/// Check if a {{type}} is less than another
+/// Check if a {{type}}_t is less than another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is less than rhs, 0 otherwise
-static inline int {{prefix}}_lt({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_lt({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr < rhs.repr);
 }
 
-/// Check if a {{type}} is greater than another
+/// Check if a {{type}}_t is greater than another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is greater than rhs, 0 otherwise
-static inline int {{prefix}}_gt({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_gt({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr > rhs.repr);
 }
 
-/// Check if a {{type}} is less than or equal to another
+/// Check if a {{type}}_t is less than or equal to another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is less than or equal to rhs, 0 otherwise
-static inline int {{prefix}}_lte({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_lte({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr <= rhs.repr);
 }
 
-/// Check if a {{type}} is greater than or equal to another
+/// Check if a {{type}}_t is greater than or equal to another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is greater than or equal to rhs, 0 otherwise
-static inline int {{prefix}}_gte({{type}} lhs, {{type}} rhs) {
+static inline int {{type}}_gte({{type}}_t lhs, {{type}}_t rhs) {
     return (lhs.repr >= rhs.repr);
 }
 
@@ -233,50 +234,50 @@ static inline int {{prefix}}_gte({{type}} lhs, {{type}} rhs) {
 // Arithmetic functions
 //==========================================================
 
-/// Negates a {{type}} number. Note: {{prefix}}_neg({{macro}}_MIN) returns
-/// {{macro}}_MAX.
+/// Negates a {{type}}_t number. Note: {{type}}_neg({{type | upper}}_MIN) returns
+/// {{type | upper}}_MAX.
 ///
 /// @param arg number to negate
 /// @return the negative of arg
-static inline {{type}} {{prefix}}_neg({{type}} arg) {
-    if (FIX64_UNLIKELY(arg.repr < -{{repr.max}})) {
-        return {{macro}}_MAX;
+static inline {{type}}_t {{type}}_neg({{type}}_t arg) {
+    if (FIX64_UNLIKELY(arg.repr < -{{repr.type | upper}}_MAX)) {
+        return {{type | upper}}_MAX;
     }
-    return ({{type}}){-arg.repr};
+    return ({{type}}_t){-arg.repr};
 }
 
-/// Addition of two {{type}} numbers
+/// Addition of two {{type}}_t numbers
 ///
 /// @param lhs left hand side for the addition
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
-static inline {{type}} {{prefix}}_add({{type}} lhs, {{type}} rhs) {
-    return ({{type}}){lhs.repr + rhs.repr};
+static inline {{type}}_t {{type}}_add({{type}}_t lhs, {{type}}_t rhs) {
+    return ({{type}}_t){lhs.repr + rhs.repr};
 }
 
-/// Saturating addition of two {{type}} numbers
+/// Saturating addition of two {{type}}_t numbers
 ///
 /// @param lhs left hand side for the addition
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
-static inline {{type}} {{prefix}}_add_sat({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_add_sat({{type}}_t lhs, {{type}}_t rhs) {
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
-    {{repr.name}} result;
-    int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result);
+    {{type}}_t result;
+    int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
-        result = (rhs.repr < 0) ? {{repr.min}} : {{repr.max}};
+        result = (rhs.repr < 0) ? {{type | upper}}_MIN : {{type | upper}}_MAX;
     }
-    return ({{type}}){result};
+    return result;
 }
 
-/// Subtraction of two {{type}} numbers
+/// Subtraction of two {{type}}_t numbers
 ///
 /// @param lhs left hand side for the subtraction
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
-static inline {{type}} {{prefix}}_sub({{type}} lhs, {{type}} rhs) {
-    return ({{type}}){lhs.repr - rhs.repr};
+static inline {{type}}_t {{type}}_sub({{type}}_t lhs, {{type}}_t rhs) {
+    return ({{type}}_t){lhs.repr - rhs.repr};
 }
 
 /// Saturating subtraction of two {{type}} numbers
@@ -284,92 +285,92 @@ static inline {{type}} {{prefix}}_sub({{type}} lhs, {{type}} rhs) {
 /// @param lhs left hand side for the subtraction
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
-static inline {{type}} {{prefix}}_sub_sat({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_sub_sat({{type}}_t lhs, {{type}}_t rhs) {
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
-    {{repr.name}} result;
-    int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result);
+    {{type}}_t result;
+    int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
-        result = (rhs.repr > 0) ? {{repr.min}} : {{repr.max}};
+        result = (rhs.repr > 0) ? {{type | upper}}_MIN : {{type | upper}}_MAX;
     }
-    return ({{type}}){result};
+    return result;
 }
 
-/// Multiplication of two {{type}} numbers
+/// Multiplication of two {{type}}_t numbers
 ///
 /// @param lhs left hand side for the multiplication
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
-static inline {{type}} {{prefix}}_mul({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_mul({{type}}_t lhs, {{type}}_t rhs) {
     // TODO don't rely on int128_t?
     int128_t result = ((int128_t)lhs.repr * rhs.repr);
-    // add to the most significant of the bits that will be shifted away for rounding
-    result += ({{repr.const(1)}} << ({{macro}}_FRAC_BITS - 1));
-    result >>= {{macro}}_FRAC_BITS;
-    return ({{type}}){({{repr.name}})result};
+    // add one to the bit below the LSB of the final result for rounding
+    result += ({{repr.const(1)}} << ({{type | upper}}_FRAC_BITS - 1));
+    result >>= {{type | upper}}_FRAC_BITS;
+    return ({{type}}_t){({{repr.type}}_t)result};
 }
 
-/// Saturating multiplication of two {{type}} numbers
+/// Saturating multiplication of two {{type}}_t numbers
 ///
 /// @param lhs left hand side for the multiplication
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
-static inline {{type}} {{prefix}}_mul_sat({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_mul_sat({{type}}_t lhs, {{type}}_t rhs) {
     // TODO don't rely on int128_t?
     int128_t result = ((int128_t)lhs.repr * rhs.repr);
-    // add to the most significant of the bits that will be shifted away for rounding
-    result += ({{repr.const(1)}} << ({{macro}}_FRAC_BITS - 1));
-    result >>= {{macro}}_FRAC_BITS;
-    if (FIX64_UNLIKELY(result > (int128_t){{repr.max}})) {
-        result = {{repr.max}};
-    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.min}})) {
-        result = {{repr.min}};
+    // add one to the bit below the LSB of the final result for rounding
+    result += ({{repr.const(1)}} << ({{type | upper}}_FRAC_BITS - 1));
+    result >>= {{type | upper}}_FRAC_BITS;
+    if (FIX64_UNLIKELY(result > (int128_t){{repr.type | upper}}_MAX)) {
+        result = {{repr.type | upper}}_MAX;
+    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.type | upper}}_MIN)) {
+        result = {{repr.type | upper}}_MIN;
     }
-    return ({{type}}){({{repr.name}})result};
+    return ({{type}}_t){({{repr.type}}_t)result};
 }
 
-/// Division of two {{type}} numbers. Result is rounded to the nearest representable value
+/// Division of two {{type}}_t numbers. Result is rounded to the nearest representable value
 ///
 /// @param lhs dividend side for the division
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
-static inline {{type}} {{prefix}}_div({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_div({{type}}_t lhs, {{type}}_t rhs) {
     // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << {{macro}}_FRAC_BITS);
+    int128_t dividend = ((int128_t)lhs.repr << {{type | upper}}_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
     int128_t result = dividend / rhs.repr;
-    return ({{type}}){({{repr.name}})result};
+    return ({{type}}_t){({{repr.type}}_t)result};
 }
 
-/// Saturating division of two {{type}} numbers. Result is rounded to the nearest representable
+/// Saturating division of two {{type}}_t numbers. Result is rounded to the nearest representable
 /// value. Division by zero is saturated depending on the sign of the dividend
 ///
 /// @param lhs dividend side for the division
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
-static inline {{type}} {{prefix}}_div_sat({{type}} lhs, {{type}} rhs) {
+static inline {{type}}_t {{type}}_div_sat({{type}}_t lhs, {{type}}_t rhs) {
     if (FIX64_UNLIKELY(rhs.repr == 0)) {
-        return (lhs.repr > 0) ? {{macro}}_MAX : {{macro}}_MIN;
+        return (lhs.repr > 0) ? {{type | upper}}_MAX : {{type | upper}}_MIN;
     }
 
     // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << {{macro}}_FRAC_BITS);
+    int128_t dividend = ((int128_t)lhs.repr << {{type | upper}}_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
     int128_t result = dividend / rhs.repr;
-    if (FIX64_UNLIKELY(result > (int128_t){{repr.max}})) {
-        result = {{repr.max}};
-    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.min}})) {
-        result = {{repr.min}};
+    if (FIX64_UNLIKELY(result > (int128_t){{repr.type | upper}}_MAX)) {
+        result = {{repr.type | upper}}_MAX;
+    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.type | upper}}_MIN)) {
+        result = {{repr.type | upper}}_MIN;
     }
-    return ({{type}}){({{repr.name}})result};
+    return ({{type}}_t){({{repr.type}}_t)result};
 }
 
 //==========================================================
@@ -380,17 +381,18 @@ static inline {{type}} {{prefix}}_div_sat({{type}} lhs, {{type}} rhs) {
 ///
 /// @param arg the fixed point number to floor
 /// @return the floor of arg
-static inline {{type}} {{prefix}}_floor({{type}} arg) {
-    return ({{type}}){(arg.repr >> {{macro}}_FRAC_BITS) << {{macro}}_FRAC_BITS};
+static inline {{type}}_t {{type}}_floor({{type}}_t arg) {
+    return ({{type}}_t){(arg.repr >> {{type | upper}}_FRAC_BITS) << {{type | upper}}_FRAC_BITS};
 }
 
 /// Rounds up to the nearest integral value greater than or equal to the fixed point argument
 ///
 /// @param arg the fixed point number to ceil
 /// @return the ceil of arg
-static inline {{type}} {{prefix}}_ceil({{type}} arg) {
+static inline {{type}}_t {{type}}_ceil({{type}}_t arg) {
     // Add use floor and add (1 - eps) for rounding up
-    return {{prefix}}_floor({{prefix}}_add(arg, {{prefix}}_sub({{macro}}_ONE, {{macro}}_EPSILON)));
+    return {{type}}_floor({{type}}_add(arg, {{type}}_sub({{type | upper}}_ONE, {#
+    #}{{type | upper}}_EPSILON)));
 }
 
 /// Rounds the fixed point argument to the nearest integral value. Halfway values round away from
@@ -398,11 +400,12 @@ static inline {{type}} {{prefix}}_ceil({{type}} arg) {
 ///
 /// @param arg the fixed point number to round
 /// @return the rounded value
-static inline {{type}} {{prefix}}_round({{type}} arg) {
-    if ({{prefix}}_lt(arg, {{macro}}_ZERO)) {
-        return {{prefix}}_floor({{prefix}}_add(arg, {{prefix}}_sub({{macro}}_HALF, {{macro}}_EPSILON)));
+static inline {{type}}_t {{type}}_round({{type}}_t arg) {
+    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
+        return {{type}}_floor({{type}}_add(arg, {{type}}_sub({{type | upper}}_HALF, {#
+            #}{{type | upper}}_EPSILON)));
     } else {
-        return {{prefix}}_floor({{prefix}}_add(arg, {{macro}}_HALF));
+        return {{type}}_floor({{type}}_add(arg, {{type | upper}}_HALF));
     }
 }
 
@@ -410,70 +413,72 @@ static inline {{type}} {{prefix}}_round({{type}} arg) {
 ///
 /// @param arg the fixed point number to truncate
 /// @return the truncated value
-static inline {{type}} {{prefix}}_trunc({{type}} arg) {
-    if ({{prefix}}_lt(arg, {{macro}}_ZERO)) {
-        return {{prefix}}_ceil(arg);
+static inline {{type}}_t {{type}}_trunc({{type}}_t arg) {
+    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
+        return {{type}}_ceil(arg);
     } else {
-        return {{prefix}}_floor(arg);
+        return {{type}}_floor(arg);
     }
 }
 
-/// Absolute value of a {{type}} number. Note: {{prefix}}_abs({{macro}}_MIN)
-/// returns {{macro}}_MAX.
+/// Absolute value of a {{type}}_t number. Note: {{type}}_abs({{type | upper}}_MIN)
+/// returns {{type | upper}}_MAX.
 ///
 /// @param arg fixed point number
 /// @return absolute value of arg
-static inline {{type}} {{prefix}}_abs({{type}} arg) {
-    if ({{prefix}}_lt(arg, {{macro}}_ZERO)) {
-        return {{prefix}}_neg(arg);
+static inline {{type}}_t {{type}}_abs({{type}}_t arg) {
+    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
+        return {{type}}_neg(arg);
     } else {
         return arg;
     }
 }
 
-/// Returns the greater of two {{type}} numbers
+/// Returns the greater of two {{type}}_t numbers
 ///
 /// @param x a fixed point number
 /// @param y the other fixed point number
 /// @return the greater of x and y
-static inline {{type}} {{prefix}}_max({{type}} x, {{type}} y) {
-    return {{prefix}}_gt(x, y) ? x : y;
+static inline {{type}}_t {{type}}_max({{type}}_t x, {{type}}_t y) {
+    return {{type}}_gt(x, y) ? x : y;
 }
 
-/// Returns the lesser of two {{type}} numbers
+/// Returns the lesser of two {{type}}_t numbers
 ///
 /// @param x a fixed point number
 /// @param y the other fixed point number
 /// @return the lesser of x and y
-static inline {{type}} {{prefix}}_min({{type}} x, {{type}} y) {
-    return {{prefix}}_lt(x, y) ? x : y;
+static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
+    return {{type}}_lt(x, y) ? x : y;
 }
 
 //==========================================================
 // Trigonometric functions
 //==========================================================
 
-/// Computes the sine of a given angle. The result is accurate to within ±{{macro}}_EPSILON
+/// Computes the sine of a given angle. The result is accurate to within +/-{{type | upper}}_EPSILON
 ///
 /// @param angle the angle
 /// @return the sine of the angle
-{{type}} {{prefix}}_sin({{type}} angle);
+{{type}}_t {{type}}_sin({{type}}_t angle);
 
-/// Computes the cosine of a given angle. The result is accurate to within ±{{macro}}_EPSILON
+/// Computes the cosine of a given angle. The result is accurate to within {#
+#}+/-{{type | upper}}_EPSILON
 ///
 /// @param angle the angle
 /// @return the cosine of the angle
-{{type}} {{prefix}}_cos({{type}} angle);
+{{type}}_t {{type}}_cos({{type}}_t angle);
 
-/// Computes the tangent of a given angle. The result is accurate to within ±{{macro}}_EPSILON for
-/// angles not in the ranges -0.52π..-0.48π and 0.48π..0.52π. Near to the singlularities at ±π/2 the
-/// absolute error increases. The relative error remains small (less than 1e-6) for all values a
-/// outside -(π/2 + 1e-6)..-(π/2 - 1e-6) and (π/2 - 1e-6)..(π/2 + 1e-6). Large values are saturated
-/// at {{macro}}_MAX or {{macro}}_MIN depending on the quadrant
+/// Computes the tangent of a given angle. The result is accurate to within {#
+#}+/- {{type | upper}}_EPSILON for
+/// angles not in the ranges -0.52π..-0.48π and 0.48π..0.52π. Near to the singlularities at +/- pi/2
+/// the absolute error increases. The relative error remains small (less than 1e-6) for all values a
+/// outside -(pi/2 + 1e-6)..-(pi/2 - 1e-6) and (pi/2 - 1e-6)..(pi/2 + 1e-6). Large values are
+/// saturated at {{type | upper}}_MAX or {{type | upper}}_MIN depending on the quadrant
 ///
 /// @param angle the angle
 /// @return the tangent of the angle
-{{type}} {{prefix}}_tan({{type}} angle);
+{{type}}_t {{type}}_tan({{type}}_t angle);
 
 #ifdef __cplusplus
 }

@@ -20,7 +20,7 @@
 #define CORDIC_PI_4 {{cordic.const(0.5)}}
 
 // This is the value of atan(exp2(-i-1)) as a Q1.62 fixed point and scaled so 1.0 = 90deg = pi/2
-static const {{repr.name}} cordic_trig_atans[{{cordic.trig.num_iter}}] = {
+static const {{repr.type}}_t cordic_trig_atans[{{cordic.trig.num_iter}}] = {
 {% for atan in cordic.trig.atans %}
     {{cordic.const(atan, 16)}},
 {% endfor %}
@@ -29,8 +29,8 @@ static const {{repr.name}} cordic_trig_atans[{{cordic.trig.num_iter}}] = {
 // CORDIC returns both the x and y (sine and cosine) at once. We need both for efficiently
 // calculating the tangent, so we use this return type to return both
 typedef struct {
-    {{repr.name}} cos;
-    {{repr.name}} sin;
+    {{repr.type}}_t cos;
+    {{repr.type}}_t sin;
 } cordic_trig_result_t;
 
 // CORDIC algorithm implementation for computing sine and cosine of an angle. Only valid for the
@@ -41,13 +41,13 @@ typedef struct {
 // common -pi/2 <= a <= pi/2. This allows us to use the result of what is normally the first
 // iteration as initial values for the variables. It also means the first LUT value is skipped
 // compared to other implementations
-static cordic_trig_result_t cordic_trig_impl({{repr.name}} angle) {
+static cordic_trig_result_t cordic_trig_impl({{repr.type}}_t angle) {
     // K is the scaling constant which most cordic implementations multiply by at the end. By
     // seeding x and y values with K rather than 1 we get the same result and it saves us a
     // multiplication at the end
-    {{repr.name}} x = CORDIC_TRIG_K;
-    {{repr.name}} y = CORDIC_TRIG_K;
-    {{repr.name}} oldx;
+    {{repr.type}}_t x = CORDIC_TRIG_K;
+    {{repr.type}}_t y = CORDIC_TRIG_K;
+    {{repr.type}}_t oldx;
 
     for (size_t i = 1; i <= CORDIC_TRIG_NUM_ITER; i++) {
         oldx = x;
@@ -72,18 +72,18 @@ static cordic_trig_result_t cordic_trig_impl({{repr.name}} angle) {
 // Returns the angle as a Q1.62 type, normalised so that 1.0 = pi/2 = 90deg. Angle is always
 // measured from the x-axis, returning between 0.0 and 1.0. The quadrant pointer is set to the
 // quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
-static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
-    // Use this instead of {{macro}}_2_PI for accuracy
-    const {{repr.name}} q0_62_2_pi = {{cordic.const(2 / consts.pi.value)}}; // Q0.62 2/pi
+static inline {{repr.type}}_t norm_angle({{type}}_t angle, int *quadrant) {
+    // Use this instead of {{type | upper}}_2_PI for accuracy
+    const {{repr.type}}_t q0_62_2_pi = {{cordic.const(2 / consts.pi)}}; // Q0.62 2/pi
 
     // Note: 64x64=128 bit multiplication can be done in 1 instruction on x86-64 or 2 on ARM
     // a is now normalised so that 1.0 = pi/2 = 90deg
     int128_t a = (int128_t)angle.repr * q0_62_2_pi; // Q31.94
 
     // Normalised constants in Q3.94 format
-    const int128_t cordic_pi_2 = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{macro}}_FRAC_BITS));
-    const int128_t cordic_pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{macro}}_FRAC_BITS + 1));
-    const int128_t cordic_2pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{macro}}_FRAC_BITS + 2));
+    const int128_t cordic_pi_2 = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS));
+    const int128_t cordic_pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS + 1));
+    const int128_t cordic_2pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS + 2));
 
     // Note: this % should be optimised to a bitwise and by the compiler
     a %= cordic_2pi; // Q3.94 - normalised between -4.0 and 4.0 (-2pi and 2pi)
@@ -105,22 +105,22 @@ static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
         a = cordic_pi - a; // UQ1.94
     }
 
-    a += (((int128_t)1) << ({{macro}}_FRAC_BITS - 1)); // for rounding
-    a >>= {{macro}}_FRAC_BITS; // UQ1.62
+    a += (((int128_t)1) << ({{type | upper}}_FRAC_BITS - 1)); // for rounding
+    a >>= {{type | upper}}_FRAC_BITS; // UQ1.62
 
-    return ({{repr.name}})a;
+    return ({{repr.type}}_t)a;
 }
 
 {% for func in ["sin", "cos"] %}
-{{type}} {{prefix}}_{{func}}({{type}} angle) {
+{{type}}_t {{type}}_{{func}}({{type}}_t angle) {
     int quadrant = 0;
-    {{repr.name}} norm_a = norm_angle(angle, &quadrant); // Q1.62
+    {{repr.type}}_t norm_a = norm_angle(angle, &quadrant); // Q1.62
 
     cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
 
-    {{repr.name}} result = cordic_result.{{func}}; // Q1.62
-    result += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS - 1)); // rounding
-    result >>= (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS); // Q32.32
+    {{repr.type}}_t result = cordic_result.{{func}}; // Q1.62
+    result += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
+    result >>= (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q32.32
 
 {% if func == "sin" %}
     if (quadrant >= 2) { // Quadrant 2 or 3 (zero-indexed)
@@ -132,21 +132,21 @@ static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
     }
 {% endif %}
 
-    return ({{type}}){result};
+    return ({{type}}_t){result};
 }
 
 {% endfor -%}
 
-{{type}} {{prefix}}_tan({{type}} angle) {
+{{type}}_t {{type}}_tan({{type}}_t angle) {
     int quadrant = 0;
-    {{repr.name}} norm_a = norm_angle(angle, &quadrant); // Q1.62
+    {{repr.type}}_t norm_a = norm_angle(angle, &quadrant); // Q1.62
     int negate = quadrant % 2; // Quadrant 1 or 3 are negative (zero-indexed)
 
     cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
 
-    {{repr.name}} result;
+    {{repr.type}}_t result;
     if (FIX64_UNLIKELY(cordic_result.cos == 0)) {
-        result = negate ? {{repr.min}} : {{repr.max}};
+        result = negate ? {{repr.type | upper}}_MIN : {{repr.type | upper}}_MAX;
     } else {
         int128_t dividend = ((int128_t)cordic_result.sin << CORDIC_TRIG_FRAC_BITS); // Q1.124
         if ((cordic_result.sin < 0) == (cordic_result.cos < 0)) {
@@ -155,15 +155,15 @@ static inline {{repr.name}} norm_angle({{type}} angle, int *quadrant) {
             dividend -= cordic_result.cos / 2; // else subtract for rounding
         }
         dividend /= cordic_result.cos; // Q63.62
-        dividend += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS - 1)); // rounding
-        dividend >>= (CORDIC_TRIG_FRAC_BITS - {{macro}}_FRAC_BITS); // Q63.32
+        dividend += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
+        dividend >>= (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q63.32
 
-        if (FIX64_UNLIKELY(dividend > (int128_t){{repr.max}} || dividend < (int128_t){{repr.min}})) {
-            result = negate ? {{repr.min}} : {{repr.max}};
+        if (FIX64_UNLIKELY(dividend > (int128_t){{repr.type | upper}}_MAX || dividend < (int128_t){{repr.type | upper}}_MIN)) {
+            result = negate ? {{repr.type | upper}}_MIN : {{repr.type | upper}}_MAX;
         } else {
             result = negate ? -dividend : dividend;
         }
     }
 
-    return ({{type}}){result};
+    return ({{type}}_t){result};
 }
