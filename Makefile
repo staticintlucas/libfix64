@@ -12,6 +12,7 @@ SOURCES = $(JINJA_SOURCES:$(SRCDIR)/%.jinja=$(GENDIR)/%)
 HEADERS = $(JINJA_HEADERS:$(SRCDIR)/%.jinja=$(GENDIR)/%)
 OBJECTS = $(SOURCES:$(GENDIR)%.c=$(OBJDIR)%.o)
 DEPFILES = $(OBJECTS:%.o=%.d)
+SCRIPTS = $(wildcard $(SCRIPTDIR)/*.py)
 
 CFLAGS += -O3
 CFLAGS += -Wall -Wextra -Wpedantic
@@ -36,7 +37,7 @@ $(OBJECTS): $(OBJDIR)/%.o: $(GENDIR)/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SOURCES) $(HEADERS): $(GENDIR)/%: $(SRCDIR)/%.jinja $(SCRIPTDIR)/jinja_render.py
+$(SOURCES) $(HEADERS): $(GENDIR)/%: $(SRCDIR)/%.jinja $(SCRIPTS)
 	@mkdir -p $(@D)
 	python3 $(SCRIPTDIR)/jinja_render.py $< > $@~
 	mv -f $@~ $@
