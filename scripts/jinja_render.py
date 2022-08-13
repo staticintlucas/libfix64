@@ -6,6 +6,7 @@ from decimal import Decimal
 import jinja2
 from pathlib import Path
 import sys
+import math
 
 try:
     filename = Path(sys.argv[1])
@@ -16,9 +17,7 @@ except IndexError:
 TYPE = "fix64"
 REPR = "int64"
 FRAC_BITS = 32
-
-CORDIC_NUM_ITER = 40 # will be off by 1 LSB only ~0.125 % of the time, or 1 in every 800 values
-CORDIC_FRAC_BITS = 62
+CHEBYSHEV_FRAC_BITS = 62
 
 def repr_const(value, base="x", digits=1):
     base = base.lower()
@@ -70,15 +69,19 @@ args = {
         "sqrt(2)": consts.sqrt2,
         "sqrt(1/2)": consts.sqrt1_2,
     },
-    "cordic": {
-        "const": lambda x, n=1: f"INT64_C(0x{int(round(x * (1 << CORDIC_FRAC_BITS))):0{n}x})",
-        "trig": {
-            "num_iter": CORDIC_NUM_ITER,
-            "k": consts.cordic_trig_k(CORDIC_NUM_ITER),
-            "atans": [consts.cordic_trig_atan(i) for i in range(1, CORDIC_NUM_ITER + 1)],
-            "frac_bits": CORDIC_FRAC_BITS,
+    "chebyshev": {
+        "frac_bits": CHEBYSHEV_FRAC_BITS,
+        "const": lambda x, n=1: f"INT64_C({int(round(x * (1 << CHEBYSHEV_FRAC_BITS))):#0{n}x})",
+        "sin": {
+            "coefs": consts.chebyshev_coefs(math.sin, [-consts.pi/4, consts.pi/4], 12),
+        },
+        "cos": {
+            "coefs": consts.chebyshev_coefs(math.cos, [-consts.pi/4, consts.pi/4], 11),
+        },
+        "tan": {
+            "coefs": consts.chebyshev_coefs(math.tan, [-consts.pi/4, consts.pi/4], 22),
         }
-    },
+    }
 }
 
 env = jinja2.Environment(

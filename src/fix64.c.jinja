@@ -4,166 +4,53 @@
 
 #include "fix64.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 
-// Number of iterations
-#define CORDIC_TRIG_NUM_ITER  {{cordic.trig.num_iter}}
 // Number fractional bits
-#define CORDIC_TRIG_FRAC_BITS {{cordic.trig.frac_bits}}
-// Scaling constant K
-#define CORDIC_TRIG_K {{cordic.const(cordic.trig.k)}}
+#define CHEBYSHEV_FRAC_BITS {{chebyshev.frac_bits}}
 
-// Q1.62 angle normalised so that 1.0 = 90deg = pi/2
-#define CORDIC_PI_4 {{cordic.const(0.5)}}
-
-// This is the value of atan(exp2(-i-1)) as a Q1.62 fixed point and scaled so 1.0 = 90deg = pi/2
-static const {{repr.type}}_t cordic_trig_atans[{{cordic.trig.num_iter}}] = {
-{% for atan in cordic.trig.atans %}
-    {{cordic.const(atan, 16)}},
-{% endfor %}
-};
-
-// CORDIC returns both the x and y (sine and cosine) at once. We need both for efficiently
-// calculating the tangent, so we use this return type to return both
-typedef struct {
-    {{repr.type}}_t cos;
-    {{repr.type}}_t sin;
-} cordic_trig_result_t;
-
-// CORDIC algorithm implementation for computing sine and cosine of an angle. Only valid for the
-// first quadrant. Designed to work on Q1.62 fixed point values for accuracy. Using Q31.32 values
-// we can only get ~29 fractional bits of accuracy as rounding errors accumulate. Besides the
-// Q31.32's full range is not needed. This implementation skips the first iteration compared to most
-// other implementations by assuming the angle is in the range 0 <= a <= pi/2 rather than the more
-// common -pi/2 <= a <= pi/2. This allows us to use the result of what is normally the first
-// iteration as initial values for the variables. It also means the first LUT value is skipped
-// compared to other implementations
-static cordic_trig_result_t cordic_trig_impl({{repr.type}}_t angle) {
-    // K is the scaling constant which most cordic implementations multiply by at the end. By
-    // seeding x and y values with K rather than 1 we get the same result and it saves us a
-    // multiplication at the end
-    {{repr.type}}_t x = CORDIC_TRIG_K;
-    {{repr.type}}_t y = CORDIC_TRIG_K;
-    {{repr.type}}_t oldx;
-
-    for (size_t i = 1; i <= CORDIC_TRIG_NUM_ITER; i++) {
-        oldx = x;
-
-        // Note: this can be implemented branchless by using with a 'sign' variable which stores
-        // either +1 or -1 and is multiplied by the values, but it is ~12% slower in my testing.
-        // Guess branch predictors are pretty solid these days ¯\_(ツ)_/¯
-        if (angle < CORDIC_PI_4) {
-            x += y >> i;
-            y -= oldx >> i;
-            angle += cordic_trig_atans[i - 1];
-        } else {
-            x -= y >> i;
-            y += oldx >> i;
-            angle -= cordic_trig_atans[i - 1];
-        }
-    }
-
-    return (cordic_trig_result_t){x, y};
-}
-
-// Returns the angle as a Q1.62 type, normalised so that 1.0 = pi/2 = 90deg. Angle is always
-// measured from the x-axis, returning between 0.0 and 1.0. The quadrant pointer is set to the
-// quadrant in which the angle was; 0 = 1st quadrant, 1 = 2nd, etc
-static inline {{repr.type}}_t norm_angle({{type}}_t angle, int *quadrant) {
-    // Use this instead of {{type | upper}}_2_PI for accuracy
-    const {{repr.type}}_t q0_62_2_pi = {{cordic.const(2 / consts.pi)}}; // Q0.62 2/pi
+// Returns the angle as a Q1.62 type, normalised so that 1.0 = pi/4 = 45deg. Angle is always
+// measured from the x-axis, returning between -1.0 and 1.0
+static inline {{repr.type}}_t norm_angle_chebyshev({{type}}_t angle) {
+    // Use this instead of {{type | upper}}_4_PI for accuracy
+    const {{repr.type}}_t q0_62_4_pi = {{chebyshev.const(4 / consts.pi)}}; // Q0.62 4/pi
 
     // Note: 64x64=128 bit multiplication can be done in 1 instruction on x86-64 or 2 on ARM
-    // a is now normalised so that 1.0 = pi/2 = 90deg
-    int128_t a = (int128_t)angle.repr * q0_62_2_pi; // Q31.94
+    // a is now normalised so that 1.0 = pi/4 = 45deg
+    int128_t a = (int128_t)angle.repr * q0_62_4_pi; // Q31.94
 
-    // Normalised constants in Q3.94 format
-    const int128_t cordic_pi_2 = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS));
-    const int128_t cordic_pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS + 1));
-    const int128_t cordic_2pi = (((int128_t)1) << (CORDIC_TRIG_FRAC_BITS + {{type | upper}}_FRAC_BITS + 2));
-
-    // Note: this % should be optimised to a bitwise and by the compiler
-    a %= cordic_2pi; // Q3.94 - normalised between -4.0 and 4.0 (-2pi and 2pi)
-
-    // Normalise between -2.0 and 2.0 (-pi and pi)
-    if (a > cordic_pi) {
-        a -= cordic_2pi; // Q2.94
-    } else if (a < -cordic_pi) {
-        a += cordic_2pi; // Q2.94
-    }
-
-    *quadrant = 0;
-    if (a < 0) {
-        *quadrant += 2;
-        a += cordic_pi; // UQ2.94
-    }
-    if (a >= cordic_pi_2) {
-        *quadrant += 1;
-        a = cordic_pi - a; // UQ1.94
-    }
-
-    a += (((int128_t)1) << ({{type | upper}}_FRAC_BITS - 1)); // for rounding
-    a >>= {{type | upper}}_FRAC_BITS; // UQ1.62
-
-    return ({{repr.type}}_t)a;
+    return ({{repr.type}}_t)(a >> {{type | upper}}_FRAC_BITS);
 }
 
-{% for func in ["sin", "cos"] %}
-{{type}}_t {{type}}_{{func}}({{type}}_t angle) {
+{% for func in ["sin", "cos", "tan"] %}
+{{type}}_t {{type}}_{{func}}_chebyshev({{type}}_t angle) {
     int quadrant = 0;
-    {{repr.type}}_t norm_a = norm_angle(angle, &quadrant); // Q1.62
+    {{repr.type}}_t norm_a = norm_angle_chebyshev(angle); // Q1.62
 
-    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
+    int64_t sum = 0;
 
-    {{repr.type}}_t result = cordic_result.{{func}}; // Q1.62
-    result += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
-    result >>= (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q32.32
-
-{% if func == "sin" %}
-    if (quadrant >= 2) { // Quadrant 2 or 3 (zero-indexed)
-        result = -result;
+    {{repr.type}}_t a_pow[{{chebyshev[func].coefs | length}}];
+    a_pow[0] = INT64_C(1) << CHEBYSHEV_FRAC_BITS;
+    for (size_t i = 1; i < sizeof(a_pow)/ sizeof(a_pow[0]); i++) {
+        a_pow[i] = ((int128_t)a_pow[i - 1] * norm_a) >> CHEBYSHEV_FRAC_BITS;
     }
-{% elif func == "cos" %}
-    if (quadrant == 1 || quadrant == 2) { // Quadrant 1 or 2 (zero-indexed)
-        result = -result;
-    }
+
+{% for coef in chebyshev[func].coefs %}
+{% if coef %}
+    sum += ((int128_t)a_pow[{{loop.index0}}] * {{chebyshev.const(coef)}}) >> CHEBYSHEV_FRAC_BITS;
 {% endif %}
+{% endfor %}
 
-    return ({{type}}_t){result};
+    sum += ({{repr.const(1)}} << (CHEBYSHEV_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
+    sum >>= (CHEBYSHEV_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q32.32
+
+    // return ({{type}}_t){result};
+    return ({{type}}_t){sum};
+}
+
+{{type}}_t {{type}}_{{func}}({{type}}_t angle) {
+    return {{type}}_{{func}}_chebyshev(angle);
 }
 
 {% endfor -%}
-
-{{type}}_t {{type}}_tan({{type}}_t angle) {
-    int quadrant = 0;
-    {{repr.type}}_t norm_a = norm_angle(angle, &quadrant); // Q1.62
-    int negate = quadrant % 2; // Quadrant 1 or 3 are negative (zero-indexed)
-
-    cordic_trig_result_t cordic_result = cordic_trig_impl(norm_a); // {Q1.62, Q1.62}
-
-    {{repr.type}}_t result;
-    if (FIX64_UNLIKELY(cordic_result.cos == 0)) {
-        result = negate ? {{repr.type | upper}}_MIN : {{repr.type | upper}}_MAX;
-    } else {
-        int128_t dividend = ((int128_t)cordic_result.sin << CORDIC_TRIG_FRAC_BITS); // Q1.124
-        if ((cordic_result.sin < 0) == (cordic_result.cos < 0)) {
-            dividend += cordic_result.cos / 2; // if signs are same -> result is positive -> add for rounding
-        } else {
-            dividend -= cordic_result.cos / 2; // else subtract for rounding
-        }
-        dividend /= cordic_result.cos; // Q63.62
-        dividend += ({{repr.const(1)}} << (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
-        dividend >>= (CORDIC_TRIG_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q63.32
-
-        if (FIX64_UNLIKELY(dividend > (int128_t){{repr.type | upper}}_MAX || dividend < (int128_t){{repr.type | upper}}_MIN)) {
-            result = negate ? {{repr.type | upper}}_MIN : {{repr.type | upper}}_MAX;
-        } else {
-            result = negate ? -dividend : dividend;
-        }
-    }
-
-    return ({{type}}_t){result};
-}

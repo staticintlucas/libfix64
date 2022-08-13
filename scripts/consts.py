@@ -1,40 +1,15 @@
 from decimal import Decimal as _D, getcontext as _ctx
+import math as _math
+import sys
 
-def pi():
-    # Compute pi to the current precision.
-    # Taken from https://docs.python.org/3/library/decimal.html
+_ctx().prec = 64
 
-    _ctx().prec += 2 # extra digits for intermediate steps
-    three = _D(3)
-    lasts, t, s, n, na, d, da = 0, three, 3, 1, 0, 0, 24
-    while s != lasts:
-        lasts = s
-        n, na = n+na, na+8
-        d, da = d+da, da+32
-        t = (t * n) / d
-        s += t
-    _ctx().prec -= 2
-    return +s # unary plus applies the new precision
-
-def e():
-    # Compute e to the current precision.
-    # Adapted from https://docs.python.org/3/library/decimal.html
-    _ctx().prec += 2
-    i, lasts, s, fact = 0, 0, 1, _D(1)
-    while s != lasts:
-        lasts = s
-        i += 1
-        fact /= i
-        s += fact
-    _ctx().prec -= 2
-    return +s
-
-e = e()
+pi = _D(3.1415926535897932384626433832795028841971693993751058209749445923)
+e = _D(2.7182818284590452353602874713526624977572470936999595749669676277)
 log2e = _D.log10(e) / _D.log10(_D(2))
 log10e = _D.log10(e)
 ln2 = _D.ln(_D(2))
 ln10 = _D.ln(_D(10))
-pi = pi()
 pi_2 = pi / 2
 pi_4 = pi / 4
 c_1_pi = _D(1) / pi
@@ -43,24 +18,30 @@ c_2_sqrtpi = _D(2) / _D.sqrt(pi)
 sqrt2 = _D.sqrt(_D(2))
 sqrt1_2 = sqrt2 / 2
 
-def cordic_trig_k(n):
-    k = _D(1)
-    for i in range(n):
-        k *= _D(1) / _D.sqrt(_D(1) + _D(2) ** _D(-2 * i))
-    return k
+def chebyshev_coefs(func, interval, n_coef):
+    N = _D(n_coef)
+    scaling = lambda x: (x + 1) * (interval[1] - interval[0]) / 2 + interval[0]
+    f = lambda x: func(scaling(x))
 
-def cordic_trig_atan(n):
-    def atan(x):
-        # Only works for range 0..1
-        _ctx().prec += 2 # extra digits for intermediate steps
-        s, lasts, d, m, sign = x, 0, 3, x, -1
-        while s != lasts:
-            m = m * x * x
-            lasts = s
-            s += sign * m / d
-            sign = -sign
-            d += 2
-        _ctx().prec -= 2
-        return +s
+    cheby_poly = [
+        [1] + [0] * (n_coef - 1),
+        [0, 1] + [0] * (n_coef - 2),
+    ]
+    for _ in range(len(cheby_poly), n_coef):
+        cheby_poly.append([2 * a - b for a, b in zip([0, *cheby_poly[-1]], cheby_poly[-2])])
 
-    return atan(_D(2) ** _D(-n)) / (pi / _D(2))
+    xk = [_D(_math.cos(pi * _D(k + 0.5) / N)) for k in range(n_coef)]
+    an = [(_D(2 - int(n == 0)) / N) *
+        sum(_D(_math.cos(n * pi * _D(k + 0.5) / N)) * _D(f(xk[k])) for k in range(n_coef))
+            for n in range(len(cheby_poly))]
+
+    coef = [0] * n_coef
+    for n in range(len(cheby_poly)):
+        for i in range(len(coef)):
+            coef[i] += an[n] * cheby_poly[n][i]
+
+    for i in range(len(coef)):
+        if abs(coef[i]) < 1e-8:
+            coef[i] = 0
+
+    return coef
