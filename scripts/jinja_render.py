@@ -21,16 +21,16 @@ CHEBYSHEV_FRAC_BITS = 62
 
 def repr_const(value, base="x", digits=1):
     base = base.lower()
-    if base == "d":
-        prefix = ""
-    elif base == "x":
-        prefix = "0x"
-    else:
+    if base not in "dx":
         raise ValueError("Unsupported base")
-    return f"{REPR.upper()}_C({prefix}{value:0{digits}{base}})"
+    return f"{REPR.upper()}_C({value:#0{digits}{base}})"
 
 def const(value, base="x", digits=1):
     repr = int(round(value * (1 << FRAC_BITS)))
+    return repr_const(repr, base, digits)
+
+def cheby_const(value, base="x", digits=1):
+    repr = int(round(value * (1 << CHEBYSHEV_FRAC_BITS)))
     return repr_const(repr, base, digits)
 
 args = {
@@ -71,15 +71,15 @@ args = {
     },
     "chebyshev": {
         "frac_bits": CHEBYSHEV_FRAC_BITS,
-        "const": lambda x, n=1: f"INT64_C({int(round(x * (1 << CHEBYSHEV_FRAC_BITS))):#0{n}x})",
+        "const": cheby_const,
         "sin": {
-            "coefs": consts.chebyshev_coefs(math.sin, [-consts.pi/4, consts.pi/4], 12),
+            "coefs": consts.chebyshev_coefs(math.sin, [0, consts.pi/4], 10),
         },
         "cos": {
-            "coefs": consts.chebyshev_coefs(math.cos, [-consts.pi/4, consts.pi/4], 11),
+            "coefs": consts.chebyshev_coefs(math.cos, [0, consts.pi/4], 10),
         },
         "tan": {
-            "coefs": consts.chebyshev_coefs(math.tan, [-consts.pi/4, consts.pi/4], 22),
+            "coefs": consts.chebyshev_coefs(math.tan, [0, consts.pi/4], 22),
         }
     }
 }
