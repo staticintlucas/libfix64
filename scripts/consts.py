@@ -20,8 +20,8 @@ sqrt1_2 = sqrt2 / 2
 
 def chebyshev_coefs(func, interval, n_coef):
     N = _D(n_coef)
-    scaling = lambda x: (x + 1) * (interval[1] - interval[0]) / 2 + interval[0]
-    f = lambda x: func(scaling(x))
+    scaling = lambda x: (x + 1) / 2 * (interval[1] - interval[0]) + interval[0]
+    sfunc = lambda x: func(scaling(x))
 
     cheby_poly = [
         [1] + [0] * (n_coef - 1),
@@ -32,16 +32,12 @@ def chebyshev_coefs(func, interval, n_coef):
 
     xk = [_D(_math.cos(pi * _D(k + 0.5) / N)) for k in range(n_coef)]
     an = [(_D(2 - int(n == 0)) / N) *
-        sum(_D(_math.cos(n * pi * _D(k + 0.5) / N)) * _D(f(xk[k])) for k in range(n_coef))
+        sum(_D(_math.cos(n * pi * _D(k + 0.5) / N)) * _D(sfunc(xk[k])) for k in range(n_coef))
             for n in range(len(cheby_poly))]
 
     coef = [0] * n_coef
     for n in range(len(cheby_poly)):
         for i in range(len(coef)):
             coef[i] += an[n] * cheby_poly[n][i]
-
-    for i in range(len(coef)):
-        if abs(coef[i]) < 1e-8:
-            coef[i] = 0
 
     return coef
