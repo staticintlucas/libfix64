@@ -15,22 +15,22 @@
 
 {% for func in ["sin", "cos", "tan"] %}
 static {{repr.type}}_t chebyshev_{{func}}_impl({{repr.type}}_t value) {
-
+    // Coefficients for the chebyshev series
     static const {{repr.type}}_t chebyshev_coefs[{{chebyshev[func].coefs | length}}] = {
 {% for coef in chebyshev[func].coefs %}
-        {{chebyshev.const(coef)}},
+        {{chebyshev.const(coef, "x", 16)}},
 {% endfor %}
     };
 
-    {{repr.type}}_t a_pow[{{chebyshev[func].coefs | length}}];
-    a_pow[0] = {{repr.const(1)}} << CHEBYSHEV_FRAC_BITS;
-    for (size_t i = 1; i < sizeof(a_pow) / sizeof(a_pow[0]); i++) {
-        a_pow[i] = ((int128_t)a_pow[i - 1] * value) >> CHEBYSHEV_FRAC_BITS;
+    {{repr.type}}_t val_pow[{{chebyshev[func].coefs | length}}];
+    val_pow[0] = {{repr.const(1)}} << CHEBYSHEV_FRAC_BITS;
+    for (size_t i = 1; i < sizeof(val_pow) / sizeof(val_pow[0]); i++) {
+        val_pow[i] = ((int128_t)val_pow[i - 1] * value) >> CHEBYSHEV_FRAC_BITS;
     }
 
     {{repr.type}}_t sum = 0;
     for (size_t i = 0; i < sizeof(chebyshev_coefs) / sizeof(chebyshev_coefs[0]); i++) {
-        sum += ((int128_t)a_pow[i] * chebyshev_coefs[i]) >> CHEBYSHEV_FRAC_BITS;
+        sum += ((int128_t)val_pow[i] * chebyshev_coefs[i]) >> CHEBYSHEV_FRAC_BITS;
     }
     sum += ({{repr.const(1)}} << (CHEBYSHEV_FRAC_BITS - {{type | upper}}_FRAC_BITS - 1)); // rounding
     sum >>= (CHEBYSHEV_FRAC_BITS - {{type | upper}}_FRAC_BITS); // Q32.32

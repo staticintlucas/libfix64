@@ -22,6 +22,8 @@ def repr_const(value, base="x", digits=1):
     base = base.lower()
     if base not in "dx":
         raise ValueError("Unsupported base")
+    if base == "x":
+        digits += 2 # Add 2 for the 0x
     return f"{REPR.upper()}_C({value:#0{digits}{base}})"
 
 def const(value, base="x", digits=1):
