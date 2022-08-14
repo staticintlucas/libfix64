@@ -1,5 +1,5 @@
-# Build dir
-build/
+# Generated sources
+output/
 
 # Python
 __pycache__/
