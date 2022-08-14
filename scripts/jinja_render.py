@@ -2,11 +2,10 @@
 
 import consts
 
-from decimal import Decimal
 import jinja2
 from pathlib import Path
 import sys
-import math
+from mpmath import mp
 
 try:
     filename = Path(sys.argv[1])
@@ -26,11 +25,11 @@ def repr_const(value, base="x", digits=1):
     return f"{REPR.upper()}_C({value:#0{digits}{base}})"
 
 def const(value, base="x", digits=1):
-    repr = int(round(value * (1 << FRAC_BITS)))
+    repr = int(mp.nint(value * (1 << FRAC_BITS)))
     return repr_const(repr, base, digits)
 
 def cheby_const(value, base="x", digits=1):
-    repr = int(round(value * (1 << CHEBYSHEV_FRAC_BITS)))
+    repr = int(mp.nint(value * (1 << CHEBYSHEV_FRAC_BITS)))
     return repr_const(repr, base, digits)
 
 args = {
@@ -49,10 +48,10 @@ args = {
         "long double": {"short": "ldbl", "suffix": "l"},
     },
     "nums": {
-        "zero": Decimal(0),
-        "one": Decimal(1),
-        "half": Decimal(0.5),
-        "two": Decimal(2),
+        "zero": consts.zero,
+        "one": consts.one,
+        "half": consts.half,
+        "two": consts.two,
     },
     "consts": {
         "e": consts.e,
@@ -73,13 +72,13 @@ args = {
         "frac_bits": CHEBYSHEV_FRAC_BITS,
         "const": cheby_const,
         "sin": {
-            "coefs": consts.chebyshev_coefs(math.sin, [0, consts.pi/4], 10),
+            "coefs": consts.chebyshev_coefs(mp.sin, [0, consts.pi/4], 10),
         },
         "cos": {
-            "coefs": consts.chebyshev_coefs(math.cos, [0, consts.pi/4], 10),
+            "coefs": consts.chebyshev_coefs(mp.cos, [0, consts.pi/4], 10),
         },
         "tan": {
-            "coefs": consts.chebyshev_coefs(math.tan, [0, consts.pi/4], 22),
+            "coefs": consts.chebyshev_coefs(mp.tan, [0, consts.pi/4], 22),
         }
     }
 }
