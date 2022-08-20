@@ -12,6 +12,7 @@
 
 // Use this instead of {{type | upper}}_4_PI for accuracy
 #define CHEBYSHEV_4_PI {{chebyshev.const(4 / consts.pi)}}
+#define CHEBYSHEV_2_PI {{chebyshev.const(2 / consts.pi)}}
 
 {% for func in ["sin", "cos", "tan"] %}
 static {{repr.type}}_t chebyshev_{{func}}_impl({{repr.type}}_t value) {
@@ -41,72 +42,74 @@ static {{repr.type}}_t chebyshev_{{func}}_impl({{repr.type}}_t value) {
 {% endfor -%}
 
 {{type}}_t {{type}}_sin({{type}}_t angle) {
-    // Normalise so that 1.0 = pi/4 = 45deg
-    int128_t a = (int128_t)angle.repr * CHEBYSHEV_4_PI; // Q31.94
-    // Modulo 8 => between 0 and 2*pi (360deg)
-    a = a & (((int128_t)8 << (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS)) - 1); // Q3.94
+    // Normalise so that 1.0 = pi/2 = 90deg
+    int128_t a = (int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
 
     // Calculate octant, used to determine which chebyshev function to call
-    unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS));
-    // Modulo pi/4 (45deg)
-    a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS)) - 1; // Q0.94
+    unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS - 1)) & 0x7;
+    // Modulo pi/2 (90deg)
+    a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS)) - 1; // UQ0.94
 
-    // Normalise 0..pi/4 (45deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
-    {{repr.type}}_t norm_a = {{chebyshev.const(-1)}} + (a >> ({{type | upper}}_FRAC_BITS - 1)); // Q1.62
+    // Normalise -pi/4..pi/4 (90deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
+    {{repr.type}}_t norm_a = (a >> ({{type | upper}}_FRAC_BITS - 1)); // UQ2.62
+    norm_a = (((norm_a + (1ul << CHEBYSHEV_FRAC_BITS)) &
+        (((int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
 
-    {{repr.type}}_t result;
-    if (octant == 0) {
-        result = chebyshev_sin_impl(norm_a);
-    } else if (octant == 1) {
-        result = chebyshev_cos_impl(-norm_a);
-    } else if (octant == 2) {
-        result = chebyshev_cos_impl(norm_a);
-    } else if (octant == 3) {
-        result = chebyshev_sin_impl(-norm_a);
-    } else if (octant == 4) {
-        result = -chebyshev_sin_impl(norm_a);
-    } else if (octant == 5) {
-        result = -chebyshev_cos_impl(-norm_a);
-    } else if (octant == 6) {
-        result = -chebyshev_cos_impl(norm_a);
-    } else if (octant == 7) {
-        result = -chebyshev_sin_impl(-norm_a);
+    {{repr.type}}_t result = 0;
+    switch (octant) {
+        case 7:
+        case 0:
+            result = chebyshev_sin_impl(norm_a);
+            break;
+        case 1:
+        case 2:
+            result = chebyshev_cos_impl(norm_a);
+            break;
+        case 3:
+        case 4:
+            result = -chebyshev_sin_impl(norm_a);
+            break;
+        case 5:
+        case 6:
+            result = -chebyshev_cos_impl(norm_a);
+            break;
     }
 
     return ({{type}}_t){ result };
 }
 
 {{type}}_t {{type}}_cos({{type}}_t angle) {
-    // Normalise so that 1.0 = pi/4 = 45deg
-    int128_t a = (int128_t)angle.repr * CHEBYSHEV_4_PI; // Q31.94
-    // Modulo 8 => between 0 and 2*pi (360deg)
-    a = a & (((int128_t)8 << (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS)) - 1); // Q3.94
+    // Normalise so that 1.0 = pi/2 = 90deg
+    int128_t a = (int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
 
     // Calculate octant, used to determine which chebyshev function to call
-    unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS));
-    // Modulo pi/4 (45deg)
+    unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS - 1)) & 0x7;
+    // Modulo pi/2 (90deg)
     a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + {{type | upper}}_FRAC_BITS)) - 1; // Q0.94
 
-    // Normalise 0..pi/4 (45deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
-    {{repr.type}}_t norm_a = {{chebyshev.const(-1)}} + (a >> ({{type | upper}}_FRAC_BITS - 1)); // Q1.62
+    // Normalise -pi/4..pi/4 (90deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
+    {{repr.type}}_t norm_a = (a >> ({{type | upper}}_FRAC_BITS - 1)); // UQ2.62
+    norm_a = (((norm_a + (1ul << CHEBYSHEV_FRAC_BITS)) &
+        (((int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
 
-    {{repr.type}}_t result;
-    if (octant == 0) {
-        result = chebyshev_cos_impl(norm_a);
-    } else if (octant == 1) {
-        result = chebyshev_sin_impl(-norm_a);
-    } else if (octant == 2) {
-        result = -chebyshev_sin_impl(norm_a);
-    } else if (octant == 3) {
-        result = -chebyshev_cos_impl(-norm_a);
-    } else if (octant == 4) {
-        result = -chebyshev_cos_impl(norm_a);
-    } else if (octant == 5) {
-        result = -chebyshev_sin_impl(-norm_a);
-    } else if (octant == 6) {
-        result = chebyshev_sin_impl(norm_a);
-    } else if (octant == 7) {
-        result = chebyshev_cos_impl(-norm_a);
+    {{repr.type}}_t result = 0;
+    switch (octant) {
+        case 7:
+        case 0:
+            result = chebyshev_cos_impl(norm_a);
+            break;
+        case 1:
+        case 2:
+            result = -chebyshev_sin_impl(norm_a);
+            break;
+        case 3:
+        case 4:
+            result = -chebyshev_cos_impl(norm_a);
+            break;
+        case 5:
+        case 6:
+            result = chebyshev_sin_impl(norm_a);
+            break;
     }
 
     return ({{type}}_t){ result };

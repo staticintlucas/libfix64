@@ -67,10 +67,10 @@ def render(filename):
             "frac_bits": CHEBYSHEV_FRAC_BITS,
             "const": cheby_const,
             "sin": {
-                "coefs": consts.chebyshev_coefs(_mp.sin, [0, consts.pi/4], 10),
+                "coefs": consts.chebyshev_coefs(_mp.sin, [-consts.pi/4, consts.pi/4], 12),
             },
             "cos": {
-                "coefs": consts.chebyshev_coefs(_mp.cos, [0, consts.pi/4], 10),
+                "coefs": consts.chebyshev_coefs(_mp.cos, [-consts.pi/4, consts.pi/4], 12),
             },
             "tan": {
                 "coefs": consts.chebyshev_coefs(_mp.tan, [0, consts.pi/4], 22),
