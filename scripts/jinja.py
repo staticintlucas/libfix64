@@ -73,7 +73,7 @@ def render(filename):
                 "coefs": consts.chebyshev_coefs(_mp.cos, [-consts.pi/4, consts.pi/4], 12),
             },
             "tan": {
-                "coefs": consts.chebyshev_coefs(_mp.tan, [0, consts.pi/4], 22),
+                "coefs": consts.chebyshev_coefs(_mp.tan, [-consts.pi/4, consts.pi/4], 26),
             }
         }
     }

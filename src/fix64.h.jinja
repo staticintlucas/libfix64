@@ -456,25 +456,26 @@ static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
 // Trigonometric functions
 //==========================================================
 
-/// Computes the sine of a given angle. The result is accurate to within +/-{{type | upper}}_EPSILON
+/// Computes the sine of a given angle. The result is extremely accurate, with a maximum error of
+/// +/-{{type | upper}}_EPSILON for <0.01% of inputs.
 ///
 /// @param angle the angle
 /// @return the sine of the angle
 {{type}}_t {{type}}_sin({{type}}_t angle);
 
-/// Computes the cosine of a given angle. The result is accurate to within {#
-#}+/-{{type | upper}}_EPSILON
+/// Computes the cosine of a given angle. The result is extremely accurate, with a maximum error of
+/// +/-{{type | upper}}_EPSILON for <0.01% of inputs.
 ///
 /// @param angle the angle
 /// @return the cosine of the angle
 {{type}}_t {{type}}_cos({{type}}_t angle);
 
-/// Computes the tangent of a given angle. The result is accurate to within {#
-#}+/- {{type | upper}}_EPSILON for
-/// angles not in the ranges -0.52π..-0.48π and 0.48π..0.52π. Near to the singlularities at +/- pi/2
-/// the absolute error increases. The relative error remains small (less than 1e-6) for all values a
-/// outside -(pi/2 + 1e-6)..-(pi/2 - 1e-6) and (pi/2 - 1e-6)..(pi/2 + 1e-6). Large values are
-/// saturated at {{type | upper}}_MAX or {{type | upper}}_MIN depending on the quadrant
+/// Computes the tangent of a given angle. The result is extremely accurate, with a maximum error
+/// of +/-{{type | upper}}_EPSILON for <0.01% of angles >0.0001pi from a singularity. Near the {#
+#}singlularities at
+/// +/-pi/2 the absolute error increases. The relative error remains small (less than 1e-12).
+/// Extremely large results are saturated at {{type | upper}}_MAX or {{type | upper}}_MIN {#
+#}depending on the sign.
 ///
 /// @param angle the angle
 /// @return the tangent of the angle
