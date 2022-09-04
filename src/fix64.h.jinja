@@ -16,10 +16,11 @@ extern "C" {
     #define __has_builtin(_) 0
 #endif
 #if __has_builtin(__builtin_expect_with_probability)
-    // Use probability of 0.9 - this is high enough that clang will reorder branches, etc. but it
-    // won't use branches instead of cmov instructions (it does this with probability >0.99, default
-    // for __builtin_expect seems to be 1.0). GCC uses default of probability of 0.9 and uses cmov
-    // anyway regardless of probability
+    // Use __builtin_expect_with_probability if available with a probability of 0.9. GCC already
+    // uses 0.9 by default for __builtin_expect, but Clang uses 1.0. This makes Clang perform
+    // optimisations such as replacing cmov with branches which make the expected case marginally
+    // faster while making the other case significantly slower. To get around this we explicitly
+    // use 0.9 probability which will reorder branches, etc, but otherwise won't go overboard.
     #define FIX64_LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
     #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
 #elif __has_builtin(__builtin_expect)
@@ -421,8 +422,8 @@ static inline {{type}}_t {{type}}_trunc({{type}}_t arg) {
     }
 }
 
-/// Absolute value of a {{type}}_t number. Note: {{type}}_abs({{type | upper}}_MIN)
-/// returns {{type | upper}}_MAX.
+/// Absolute value of a {{type}}_t number. Note: {{type}}_abs({{type | upper}}_MIN) returns {#
+#}{{type | upper}}_MAX.
 ///
 /// @param arg fixed point number
 /// @return absolute value of arg
@@ -472,8 +473,8 @@ static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
 
 /// Computes the tangent of a given angle. The result is extremely accurate, with a maximum error
 /// of +/-{{type | upper}}_EPSILON for <0.01% of angles >0.0001pi from a singularity. Near the {#
-#}singlularities at
-/// +/-pi/2 the absolute error increases. The relative error remains small (less than 1e-12).
+#}singularities
+/// at +/-pi/2 the absolute error increases. The relative error remains small (less than 1e-12).
 /// Extremely large results are saturated at {{type | upper}}_MAX or {{type | upper}}_MIN {#
 #}depending on the sign.
 ///
