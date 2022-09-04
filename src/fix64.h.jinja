@@ -453,6 +453,96 @@ static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
     return {{type}}_lt(x, y) ? x : y;
 }
 
+/// Returns the absolute value of the difference between two numbers. The difference will saturate
+/// at {{type | upper}}_MAX
+///
+/// @param x a fixed point number
+/// @param y the other fixed point number
+/// @return the absolute difference
+static inline {{type}}_t {{type}}_dim({{type}}_t x, {{type}}_t y) {
+    return {{type}}_abs({{type}}_sub_sat(x, y));
+}
+
+//==========================================================
+// Exponential functions
+//==========================================================
+
+/// Returns e raised to the given power
+///
+/// @param arg fixed point number
+/// @return e raised to the given power
+{{type}}_t {{type}}_exp({{type}}_t arg);
+
+/// Returns 2 raised to the given power
+///
+/// @param arg fixed point number
+/// @return 2 raised to the given power
+{{type}}_t {{type}}_exp2({{type}}_t arg);
+
+/// Returns e raised to the given power, minus one
+///
+/// @param arg fixed point number
+/// @return e raised to the given power, minus one
+static inline {{type}}_t {{type}}_expm1({{type}}_t arg) {
+    return {{type}}_sub({{type}}_exp(arg), {{type | upper}}_ONE);
+}
+
+/// Returns natural (base e) logarithm of a number
+///
+/// @param arg fixed point number
+/// @return the natural logarithm
+{{type}}_t {{type}}_log({{type}}_t arg);
+
+/// Returns base 10 logarithm of a number
+///
+/// @param arg fixed point number
+/// @return the base 10 logarithm
+{{type}}_t {{type}}_log10({{type}}_t arg);
+
+/// Returns base 2 logarithm of a number
+///
+/// @param arg fixed point number
+/// @return the base 2 logarithm
+{{type}}_t {{type}}_log2({{type}}_t arg);
+
+/// Returns natural (base e) logarithm of 1 plus the argument
+///
+/// @param arg fixed point number
+/// @return the natural logarithm of 1 plus the argument
+static inline {{type}}_t {{type}}_log1p({{type}}_t arg) {
+    return {{type}}_log({{type}}_add_sat({{type | upper}}_ONE, arg));
+}
+
+//==========================================================
+// Power functions
+//==========================================================
+
+/// Raises a fixed point number to the power of another
+///
+/// @param x the base
+/// @param y the exponent
+/// @return the base raised to the power of the exponent
+{{type}}_t {{type}}_pow({{type}}_t x, {{type}}_t y);
+
+/// Calculates a number's square root
+///
+/// @param arg fixed point number
+/// @return the square root
+{{type}}_t {{type}}_sqrt({{type}}_t arg);
+
+/// Calculates a number's cube root
+///
+/// @param arg fixed point number
+/// @return the cube root
+{{type}}_t {{type}}_cbrt({{type}}_t arg);
+
+/// Calculates the hypotenuse of a right-angled triangle given the two other sides
+///
+/// @param x one side of the triangle
+/// @param y the other side of the triangle
+/// @return the length of the hypotenuse
+{{type}}_t {{type}}_hypot({{type}}_t x, {{type}}_t y);
+
 //==========================================================
 // Trigonometric functions
 //==========================================================
@@ -481,6 +571,61 @@ static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
 /// @param angle the angle
 /// @return the tangent of the angle
 {{type}}_t {{type}}_tan({{type}}_t angle);
+
+/// Computes arc sine of a given number
+///
+/// @param arg fixed point number
+/// @return the arc sine
+{{type}}_t {{type}}_asin({{type}}_t arg);
+
+/// Computes arc cosine of a given number
+///
+/// @param arg fixed point number
+/// @return the arc cosine
+{{type}}_t {{type}}_acos({{type}}_t arg);
+
+/// Computes 2 argument arc tangent of a given pair of numbers
+///
+/// @param x the horizontal component
+/// @param y the vertical component
+/// @return the arc tangent of y/x, taking their signs into account
+{{type}}_t {{type}}_atan2({{type}}_t x, {{type}}_t y);
+
+/// Computes arc tangent of a given number
+///
+/// @param arg fixed point number
+/// @return the arc tangent
+static inline {{type}}_t {{type}}_atan({{type}}_t arg) {
+    return {{type}}_atan2(arg, {{type | upper}}_ONE);
+}
+
+//==========================================================
+// Error and Gamma functions
+//==========================================================
+
+/// computes error function
+///
+/// @param arg a fixed point number
+/// @return the result of the error function
+{{type}}_t {{type}}_erf({{type}}_t arg);
+
+/// computes complementary error function
+///
+/// @param arg a fixed point number
+/// @return the result of the complementary error function
+{{type}}_t {{type}}_erfc({{type}}_t arg);
+
+/// computes gamma function
+///
+/// @param arg a fixed point number
+/// @return the result of the gamma function
+{{type}}_t {{type}}_tgamma({{type}}_t arg);
+
+/// computes natural logarithm of the gamma function
+///
+/// @param arg a fixed point number
+/// @return the natural logarithm of the result of the gamma function
+{{type}}_t {{type}}_lgamma({{type}}_t arg);
 
 #ifdef __cplusplus
 }
