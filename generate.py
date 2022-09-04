@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from genericpath import isfile
-
 import sys
 import subprocess
 from pathlib import Path
