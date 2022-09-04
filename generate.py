@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from genericpath import isfile
-from scripts import jinja
 
 import sys
 import subprocess
@@ -23,6 +22,9 @@ def main(build=False, zip=False):
         import mpmath as _
     except ImportError as e:
         not_installed_error("mpmath")
+
+    # We can do this safely after checking requirements
+    from scripts import jinja
 
     try:
         # Copy license to output
