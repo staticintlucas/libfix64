@@ -9,55 +9,47 @@ HERE = Path(__file__).absolute().parent
 SRC_DIR = HERE / "src"
 OUT_DIR = HERE / "output"
 SCRIPTS = HERE / "scripts"
+TESTDIR = HERE / "test"
 
-def main(build=False, zip=False):
-    # Check required modules are installed
-    try:
-        import jinja2 as _
-    except ImportError as e:
-        not_installed_error("jinja2")
-    try:
-        import mpmath as _
-    except ImportError as e:
-        not_installed_error("mpmath")
-
-    # We can do this safely after checking requirements
+def main(build=False, test=False, zip=False):
     from scripts import jinja
 
-    try:
-        # Copy license to output
-        with open(HERE / "LICENSE", "r") as src:
-            with open(OUT_DIR / "LICENSE", "w") as dest:
-                dest.write(src.read())
+    OUT_DIR.mkdir(exist_ok=True)
 
-        # Copy Makefile
-        with open(SRC_DIR / "Makefile", "r") as src:
-            with open(OUT_DIR /  "Makefile", "w") as dest:
-                dest.write(src.read())
+    # Copy license to output
+    with open(HERE / "LICENSE", "r") as src:
+        with open(OUT_DIR / "LICENSE", "w") as dest:
+            dest.write(src.read())
 
-        # Render Jinja files
-        for src in SRC_DIR.glob("*.jinja"):
-            if not src.is_file():
-                continue
-            dest_path = OUT_DIR / src.stem
-            with open(dest_path, "w") as dest:
-                dest.write(jinja.render(src))
+    # Copy Makefile
+    with open(SRC_DIR / "Makefile", "r") as src:
+        with open(OUT_DIR /  "Makefile", "w") as dest:
+            dest.write(src.read())
 
-        # Zip up output
-        if zip:
-            with ZipFile("fix64.zip", 'w') as zf:
-                zf.write(OUT_DIR, "fix64")
-                for f in OUT_DIR.iterdir():
-                    if f.is_file():
-                        zf.write(f, str("fix64" / f.relative_to(OUT_DIR)))
-    except OSError as e:
-        bad_path_error(e.filename, e.strerror)
+    # Render Jinja files
+    for src in SRC_DIR.glob("*.jinja"):
+        if not src.is_file():
+            continue
+        dest_path = OUT_DIR / src.stem
+        with open(dest_path, "w") as dest:
+            dest.write(jinja.render(src))
+
+    # Zip up output
+    if zip:
+        with ZipFile("fix64.zip", 'w') as zf:
+            zf.write(OUT_DIR, "fix64")
+            for f in OUT_DIR.iterdir():
+                if f.is_file():
+                    zf.write(f, str("fix64" / f.relative_to(OUT_DIR)))
 
     # Build output
     if build:
-        result = subprocess.run("make", cwd=OUT_DIR)
-        if result.returncode:
-            sys.exit(result.returncode)
+        subprocess.run("make", cwd=OUT_DIR, check=True)
+
+    if test:
+        subprocess.run(("make", "tests"), cwd=OUT_DIR, check=True)
+        import pytest
+        pytest.main(["-x", str(TESTDIR)])
 
 # Error handling functions
 def not_installed_error(name):
@@ -78,7 +70,7 @@ def not_installed_error(name):
 
 def bad_path_error(path, reason):
     print(
-        f"Error:\x1b[0m Failed to open \x1b[1m{path}\x1b[0m:",
+        f"\x1b[1;31mError:\x1b[0m Failed to open \x1b[1m{path}\x1b[0m:",
         "",
         f"    \x1b[1m{reason}\x1b[0m",
         "",
@@ -86,9 +78,29 @@ def bad_path_error(path, reason):
         "",
         "\x1b[30mThe latest release can be found at:\x1b[0m",
         "    \x1b[1;30mhttps://github.com/staticintlucas/fix64/releases\x1b[0m",
+        "",
+        "Otherwise report this error at:",
+        "    \x1b[1mhttps://github.com/staticintlucas/fix64/issues\x1b[0m",
         sep="\n", file=sys.stderr
     )
     sys.exit(1)
+
+def subprocess_error(cmd, code):
+    print(
+        "",
+        f"\x1b[1;31mError:\x1b[0m Subprocess \x1b[1m{' '.join(cmd)}\x1b[0m failed!"
+        "",
+        f"   Exit code: \x1b[1m{code}\x1b[0m",
+        "",
+        "\x1b[30mEnsure this script is run in a \x1b[1mfix64\x1b[0;30m source directory\x1b[0m",
+        "",
+        "\x1b[30mThe latest release can be found at:\x1b[0m",
+        "    \x1b[1;30mhttps://github.com/staticintlucas/fix64/releases\x1b[0m",
+        "",
+        "Otherwise report this error at:",
+        "    \x1b[1mhttps://github.com/staticintlucas/fix64/issues\x1b[0m",
+        sep="\n", file=sys.stderr
+    )
 
 def some_other_error():
     import traceback
@@ -109,21 +121,29 @@ if __name__ == "__main__":
 
         if "help" in args:
             print(
-                f"Usage: {sys.argv[0]} [--build] [--zip]",
+                f"Usage: {sys.argv[0]} [--build] [--test] [--zip]",
                 "",
                 "Generates C header and source files for fix64",
                 "",
                 "Options:",
                 "  --build               Also build the library from generated sources",
+                "  --test                Build and run unit tests",
                 "  --zip                 Output a zip file containing generated sources",
                 sep="\n"
             )
             sys.exit(0)
 
         build = "build" in args
+        test = "test" in args
         zip = "zip" in args or "archive" in args
-        main(build, zip)
+        main(build, test, zip)
 
+    except ImportError as e:
+        not_installed_error(e.name)
+    except OSError as e:
+        bad_path_error(e.filename, e.strerror)
+    except subprocess.CalledProcessError as e:
+        subprocess_error(e.cmd, e.returncode)
     except (KeyboardInterrupt, SystemExit):
         raise
     except:
