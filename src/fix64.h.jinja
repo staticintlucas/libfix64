@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 
@@ -113,11 +114,52 @@ typedef struct {
 // Conversion functions
 //==========================================================
 
-{% for ftype, fprops in float_types.items() %}
-/// Converts a {{ftype}} to {{type}}_t
+{% for itype, iprops in int_types.items() %}
+/// Converts a {{type}}_t to an {{itype}}_t
 ///
-/// @param value the {{ftype}} value to convert
+/// @param value the {{type}}_t value to convert
+/// @return converted {{itype}} value
+static inline {{itype}} {{type}}_to_{{itype}}({{type}}_t value) {
+    {{repr.type}}_t result = (value.repr >> {{type | upper}}_FRAC_BITS);
+    #if {{repr.type | upper}}_MAX > {{itype | upper}}_MAX
+        if (result > {{iprops.short | upper}}_MAX) {
+            result = {{iprops.short | upper}}_MAX;
+        }
+    #endif
+    #if defined({{iprops.short | upper}}_MIN) && ({{repr.type | upper}}_MIN > {{itype | upper}}_MIN)
+        else if (result < {{iprops.short | upper}}_MIN) {
+            result = {{itype | upper}}_MIN;
+        }
+    #endif
+    return ({{itype}})result;
+}
+
+{% endfor -%}
+
+{% for itype, iprops in int_types.items() %}
+/// Converts an {{itype}} to a {{type}}_t
+///
+/// @param value the {{itype}} value to convert
 /// @return converted {{type}}_t value
+static inline {{type}}_t {{type}}_from_{{itype}}({{itype}} value) {
+    if (value > ({{type | upper}}_MAX.repr >> {{type | upper}}_FRAC_BITS)) {
+        value = ({{type | upper}}_MAX.repr >> {{type | upper}}_FRAC_BITS);
+    }
+    #if defined({{iprops.short | upper}}_MIN) /* if it's signed */
+        else if (value < ({{type | upper}}_MIN.repr >> {{type | upper}}_FRAC_BITS)) {
+            value = ({{type | upper}}_MIN.repr >> {{type | upper}}_FRAC_BITS);
+        }
+    #endif
+    return ({{type}}_t){ ({{repr.type}}_t)value << {{type | upper}}_FRAC_BITS };
+}
+
+{% endfor -%}
+
+{% for ftype, fprops in float_types.items() %}
+/// Converts a {{type}}_t to a {{ftype}}
+///
+/// @param value the {{type}}_t value to convert
+/// @return converted {{ftype}} value
 static inline {{ftype}} {{type}}_to_{{fprops.short}}({{type}}_t value) {
     return (({{ftype}})(value.repr) / ({{ftype}})({{repr.const(1)}} << {{type | upper}}_FRAC_BITS));
 }

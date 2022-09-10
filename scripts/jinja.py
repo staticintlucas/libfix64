@@ -37,6 +37,10 @@ def render(filename):
             "type": REPR,
             "const": repr_const,
         },
+        "int_types": {
+            "int": {"short": "int"},
+            "unsigned": {"short": "uint"},
+        },
         "float_types": {
             "float": {"short": "flt", "suffix": "f"},
             "double": {"short": "dbl", "suffix": ""},
