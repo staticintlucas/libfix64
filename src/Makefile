@@ -29,7 +29,7 @@ install: all
 
 $(BUILDDIR)/libfix64_tests.so: $(OBJECTS)
 	@mkdir -p $(@D)
-	$(CC) $(LDFLAGS) $< -o $@
+	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILDDIR)/libfix64.a: $(OBJECTS)
 	@mkdir -p $(@D)

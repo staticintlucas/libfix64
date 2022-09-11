@@ -50,6 +50,7 @@ def render(filename):
             "sin": consts.chebyshev_coefs(_mp.sin, [-consts.pi/4, consts.pi/4], 12),
             "cos": consts.chebyshev_coefs(_mp.cos, [-consts.pi/4, consts.pi/4], 11),
             "tan": consts.chebyshev_coefs(_mp.tan, [-consts.pi/4, consts.pi/4], 26),
+            "exp2m1": consts.chebyshev_coefs(lambda x: 2**x-1, [-1, 1], 13),
         }
     }
 
