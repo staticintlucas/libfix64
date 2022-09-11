@@ -47,28 +47,27 @@ extern "C" {
 // Type definitions
 //==========================================================
 
-/// Signed fixed point Q{{int_bits}}.{{frac_bits}} type
+/// Signed fixed point Q31.32 type
 typedef struct {
-    {{repr.type}}_t repr;
-} {{type}}_t;
+    int64_t repr;
+} fix64_t;
 
 //==========================================================
 // Defines
 //==========================================================
 
-/// Number of fractional bits for {{type}}_t
-#define {{type | upper}}_FRAC_BITS {{frac_bits}}
-/// Number of integral bits for {{type}}_t (excluding sign bit)
-#define {{type | upper}}_INT_BITS  {{int_bits}}
-/// Number of significant bits for {{type}}_t (excluding sign bit)
-#define {{type | upper}}_BITS      ({{type | upper}}_INT_BITS + {{type | upper}}_FRAC_BITS)
-/// Maximum value for a {{type}}_t
-#define {{type | upper}}_MAX       (({{type}}_t){ {{-repr.type | upper}}_MAX})
-/// Minimum value for a {{type}}_t
-#define {{type | upper}}_MIN       (({{type}}_t){ {{-repr.type | upper}}_MIN})
-/// Smallest positive non-zero value for {{type}}_t
-#define {{type | upper}}_EPSILON   (({{type}}_t){ {{-repr.const(1, "d")}}})
-
+/// Number of fractional bits for fix64_t
+#define FIX64_FRAC_BITS 32
+/// Number of integral bits for fix64_t (excluding sign bit)
+#define FIX64_INT_BITS  31
+/// Number of significant bits for fix64_t (excluding sign bit)
+#define FIX64_BITS      (FIX64_INT_BITS + FIX64_FRAC_BITS)
+/// Maximum value for a fix64_t
+#define FIX64_MAX       ((fix64_t){INT64_MAX})
+/// Minimum value for a fix64_t
+#define FIX64_MIN       ((fix64_t){INT64_MIN})
+/// Smallest positive non-zero value for fix64_t
+#define FIX64_EPSILON   ((fix64_t){INT64_C(1)})
 
 //==========================================================
 // Literals
@@ -76,24 +75,17 @@ typedef struct {
 
 // This function call will be inlined by the compiler, Clang 13 does this even with -Og
 
-/// Creates a {{type}}_t literal, for example {{type | upper}}_C(2.5)
-#define {{type | upper}}_C(x) ({{type}}_from_ldbl((long double)(x##L)))
+/// Creates a fix64_t literal, for example FIX64_C(2.5)
+#define FIX64_C(x) (fix64_from_ldbl((long double)(x##L)))
 
 //==========================================================
 // Constants
 //==========================================================
 
-{% for name, value in nums.items() %}
-/// {{type}}_t constant {{value}}
-#define {{type | upper}}_{{name | upper}} {{" " * (9 - (name | length))-}}
-    (({{type}}_t){ {{-const(value, "x", 9)}}})
-{% endfor %}
-
-{% for expr, value in consts.items() %}
-/// {{type}}_t mathematical constant {{expr}}
-{% set name = expr | replace("_", "") | replace("(", "") | replace(")", "") | replace("/", "_") %}
-#define {{type | upper}}_{{name | upper}} {{" " * (9 - (name | length))-}}
-    (({{type}}_t){ {{-const(value, "x", 9)}}})
+{% for name, c in consts.items() %}
+/// fix64_t constant {{c.str}}
+#define FIX64_{{name | upper}} {{" " * (9 - (name | length))-}}
+    ((fix64_t){ {{-const(c.val, digits=9)-}} })
 {% endfor %}
 
 //==========================================================
@@ -102,10 +94,13 @@ typedef struct {
 
 // _Generic is only available since C11
 #if __STDC_VERSION__ >= 201112L
-/// Generic macro to convert a floating point type to {{type}}_t
-#define {{type}}_from(x) _Generic((x), \
-{% for ftype, fprops in float_types.items() %}
-        {{ftype}}: {{type}}_from_{{fprops.short}}, \
+/// Generic macro to convert a floating point type to fix64_t
+#define fix64_from(x) _Generic((x), \
+{% for type, i in ints.items() %}
+        {{type}}: fix64_from_{{i.short}}, \
+{% endfor %}
+{% for type, f in floats.items() %}
+        {{type}}: fix64_from_{{f.short}}, \
 {% endfor %}
     )(x)
 #endif
@@ -114,54 +109,53 @@ typedef struct {
 // Conversion functions
 //==========================================================
 
-{% for itype, iprops in int_types.items() %}
-/// Converts a {{type}}_t to an {{itype}}_t
+{% for type, i in ints.items() %}
+/// Converts a fix64_t to an {{type}}
 ///
-/// @param value the {{type}}_t value to convert
-/// @return converted {{itype}} value
-static inline {{itype}} {{type}}_to_{{itype}}({{type}}_t value) {
-    {{repr.type}}_t result = (value.repr >> {{type | upper}}_FRAC_BITS);
-    #if {{repr.type | upper}}_MAX > {{itype | upper}}_MAX
-        if (result > {{iprops.short | upper}}_MAX) {
-            result = {{iprops.short | upper}}_MAX;
-        }
-    #endif
-    #if defined({{iprops.short | upper}}_MIN) && ({{repr.type | upper}}_MIN > {{itype | upper}}_MIN)
-        else if (result < {{iprops.short | upper}}_MIN) {
-            result = {{itype | upper}}_MIN;
-        }
-    #endif
-    return ({{itype}})result;
-}
-
-{% endfor -%}
-
-{% for itype, iprops in int_types.items() %}
-/// Converts an {{itype}} to a {{type}}_t
-///
-/// @param value the {{itype}} value to convert
-/// @return converted {{type}}_t value
-static inline {{type}}_t {{type}}_from_{{itype}}({{itype}} value) {
-    if (value > ({{type | upper}}_MAX.repr >> {{type | upper}}_FRAC_BITS)) {
-        value = ({{type | upper}}_MAX.repr >> {{type | upper}}_FRAC_BITS);
+/// @param value the fix64_t value to convert
+/// @return converted {{type}} value
+static inline {{type}} fix64_to_{{i.short}}(fix64_t value) {
+    int64_t result = (value.repr >> FIX64_FRAC_BITS);
+    if (result > {{i.short | upper}}_MAX) {
+        result = {{i.short | upper}}_MAX;
     }
-    #if defined({{iprops.short | upper}}_MIN) /* if it's signed */
-        else if (value < ({{type | upper}}_MIN.repr >> {{type | upper}}_FRAC_BITS)) {
-            value = ({{type | upper}}_MIN.repr >> {{type | upper}}_FRAC_BITS);
-        }
-    #endif
-    return ({{type}}_t){ ({{repr.type}}_t)value << {{type | upper}}_FRAC_BITS };
+{%- if i.signed %} {# -#}
+    else if (result < {{i.short | upper}}_MIN) {
+        result = {{i.short | upper}}_MIN;
+    }
+{%- endif +%}
+    return result;
 }
 
 {% endfor -%}
 
-{% for ftype, fprops in float_types.items() %}
-/// Converts a {{type}}_t to a {{ftype}}
+{% for type, i in ints.items() %}
+/// Converts an {{type}} to a fix64_t
 ///
-/// @param value the {{type}}_t value to convert
-/// @return converted {{ftype}} value
-static inline {{ftype}} {{type}}_to_{{fprops.short}}({{type}}_t value) {
-    return (({{ftype}})(value.repr) / ({{ftype}})({{repr.const(1)}} << {{type | upper}}_FRAC_BITS));
+/// @param value the {{type}} value to convert
+/// @return converted fix64_t value
+static inline fix64_t fix64_from_{{i.short}}({{type}} value) {
+    int128_t result = ((int128_t)value << FIX64_FRAC_BITS);
+    if (result > INT64_MAX) {
+        result = INT64_MAX;
+    }
+{%- if i.signed %} {# -#}
+    else if (result < INT64_MIN) {
+        result = INT64_MIN;
+    }
+{%- endif +%}
+    return (fix64_t){(int64_t)result};
+}
+
+{% endfor -%}
+
+{% for type, f in floats.items() %}
+/// Converts a fix64_t to a {{type}}
+///
+/// @param value the fix64_t value to convert
+/// @return converted {{type}} value
+static inline {{type}} fix64_to_{{f.short}}(fix64_t value) {
+    return (({{type}})(value.repr) / ({{type}})(INT64_C(1) << FIX64_FRAC_BITS));
 }
 
 {% endfor -%}
@@ -175,42 +169,42 @@ static inline {{ftype}} {{type}}_to_{{fprops.short}}({{type}}_t value) {
 // we're one interval off, but we can compensate for this by only comparing < min when saturating.
 // Values == min are converted as usual so if min is off-by-one the result won't be.
 
-{% for ftype, fprops in float_types.items() %}
-/// Converts a {{ftype}} to {{type}}_t
+{% for type, f in floats.items() %}
+/// Converts a {{type}} to fix64_t
 ///
-/// Saturates if input is outside of {{type}}_t's range. Undefined behaviour if input is NaN
+/// Saturates if input is outside of fix64_t's range. Undefined behaviour if input is NaN
 ///
-/// @param value the {{ftype}} value to convert
-/// @return converted {{type}}_t value
-static inline {{type}}_t {{type}}_from_{{fprops.short}}({{ftype}} value) {
-#if {{fprops.short | upper}}_MANT_DIG >= {{type | upper}}_BITS
-    static const {{ftype}} max = {{repr.type | upper}}_MAX;
-    static const {{ftype}} min = {{repr.type | upper}}_MIN;
+/// @param value the {{type}} value to convert
+/// @return converted fix64_t value
+static inline fix64_t fix64_from_{{f.short}}({{type}} value) {
+#if {{f.short | upper}}_MANT_DIG >= FIX64_BITS
+    static const {{type}} max = INT64_MAX;
+    static const {{type}} min = INT64_MIN;
 #else
-    static const {{ftype}} max = ({{repr.type | upper}}_MAX & ~(({{repr.const(1, "d")}} << {#
-        #}({{type | upper}}_BITS - {{fprops.short | upper}}_MANT_DIG)) - 1));
-    static const {{ftype}} min = -max;
+    static const {{type}} max = (INT64_MAX & ~((INT64_C(1) << {#
+        #}(FIX64_BITS - {{f.short | upper}}_MANT_DIG)) - 1));
+    static const {{type}} min = -max;
 #endif
-{% if ftype == "long double" %}
+{% if type == "long double" %}
     // Note: clang fails to optimise out call to exp2l, so we use a bit shift instead. A long
     // double is more than large enough to store the result so the compiler doesn't complain
     // like it does with float (even though float can accurately hold any power of 2 too).
-    value = value * ({{repr.const(1)}} << {{type | upper}}_FRAC_BITS);
+    value = value * (INT64_C(1) << FIX64_FRAC_BITS);
 {% else %}
-    value = value * exp2{{fprops.suffix}}({{type | upper}}_FRAC_BITS);
+    value = value * exp2{{f.suffix}}(FIX64_FRAC_BITS);
 {% endif %}
-    value += copysign{{fprops.suffix}}(0.5{{fprops.suffix}}, value);
+    value += copysign{{f.suffix}}(0.5{{f.suffix}}, value);
 
-    {{repr.type}}_t repr;
+    int64_t repr;
     if (FIX64_UNLIKELY(value > max)) {
-        repr = {{repr.type | upper}}_MAX;
+        repr = INT64_MAX;
     } else if (FIX64_UNLIKELY(value < min)) {
-        repr = {{repr.type | upper}}_MIN;
+        repr = INT64_MIN;
     } else {
-        repr = ({{repr.type}}_t)value;
+        repr = (int64_t)value;
     }
 
-    return ({{type}}_t){repr};
+    return (fix64_t){repr};
 }
 
 {% endfor -%}
@@ -219,57 +213,57 @@ static inline {{type}}_t {{type}}_from_{{fprops.short}}({{ftype}} value) {
 // Comparison functions
 //==========================================================
 
-/// Compares two {{type}}_t values for equality
+/// Compares two fix64_t values for equality
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if the values are equal, 0 otherwise
-static inline int {{type}}_eq({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_eq(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr == rhs.repr);
 }
 
-/// Compares two {{type}}_t values for inequality
+/// Compares two fix64_t values for inequality
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if the values are not equal, 0 otherwise
-static inline int {{type}}_neq({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_neq(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr != rhs.repr);
 }
 
-/// Check if a {{type}}_t is less than another
+/// Check if a fix64_t is less than another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is less than rhs, 0 otherwise
-static inline int {{type}}_lt({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_lt(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr < rhs.repr);
 }
 
-/// Check if a {{type}}_t is greater than another
+/// Check if a fix64_t is greater than another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is greater than rhs, 0 otherwise
-static inline int {{type}}_gt({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_gt(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr > rhs.repr);
 }
 
-/// Check if a {{type}}_t is less than or equal to another
+/// Check if a fix64_t is less than or equal to another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is less than or equal to rhs, 0 otherwise
-static inline int {{type}}_lte({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_lte(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr <= rhs.repr);
 }
 
-/// Check if a {{type}}_t is greater than or equal to another
+/// Check if a fix64_t is greater than or equal to another
 ///
 /// @param lhs left hand side for comparison
 /// @param rhs right hand side for comparison
 /// @return 1 if lhs is greater than or equal to rhs, 0 otherwise
-static inline int {{type}}_gte({{type}}_t lhs, {{type}}_t rhs) {
+static inline int fix64_gte(fix64_t lhs, fix64_t rhs) {
     return (lhs.repr >= rhs.repr);
 }
 
@@ -277,143 +271,143 @@ static inline int {{type}}_gte({{type}}_t lhs, {{type}}_t rhs) {
 // Arithmetic functions
 //==========================================================
 
-/// Negates a {{type}}_t number. Note: {{type}}_neg({{type | upper}}_MIN) returns
-/// {{type | upper}}_MAX.
+/// Negates a fix64_t number. Note: fix64_neg(FIX64_MIN) returns
+/// FIX64_MAX.
 ///
 /// @param arg number to negate
 /// @return the negative of arg
-static inline {{type}}_t {{type}}_neg({{type}}_t arg) {
-    if (FIX64_UNLIKELY(arg.repr < -{{repr.type | upper}}_MAX)) {
-        return {{type | upper}}_MAX;
+static inline fix64_t fix64_neg(fix64_t arg) {
+    if (FIX64_UNLIKELY(arg.repr < -INT64_MAX)) {
+        return FIX64_MAX;
     }
-    return ({{type}}_t){-arg.repr};
+    return (fix64_t){-arg.repr};
 }
 
-/// Addition of two {{type}}_t numbers
+/// Addition of two fix64_t numbers
 ///
 /// @param lhs left hand side for the addition
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
-static inline {{type}}_t {{type}}_add({{type}}_t lhs, {{type}}_t rhs) {
-    return ({{type}}_t){lhs.repr + rhs.repr};
+static inline fix64_t fix64_add(fix64_t lhs, fix64_t rhs) {
+    return (fix64_t){lhs.repr + rhs.repr};
 }
 
-/// Saturating addition of two {{type}}_t numbers
+/// Saturating addition of two fix64_t numbers
 ///
 /// @param lhs left hand side for the addition
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
-static inline {{type}}_t {{type}}_add_sat({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_add_sat(fix64_t lhs, fix64_t rhs) {
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
-    {{type}}_t result;
+    fix64_t result;
     int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
-        result = (rhs.repr < 0) ? {{type | upper}}_MIN : {{type | upper}}_MAX;
+        result = (rhs.repr < 0) ? FIX64_MIN : FIX64_MAX;
     }
     return result;
 }
 
-/// Subtraction of two {{type}}_t numbers
+/// Subtraction of two fix64_t numbers
 ///
 /// @param lhs left hand side for the subtraction
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
-static inline {{type}}_t {{type}}_sub({{type}}_t lhs, {{type}}_t rhs) {
-    return ({{type}}_t){lhs.repr - rhs.repr};
+static inline fix64_t fix64_sub(fix64_t lhs, fix64_t rhs) {
+    return (fix64_t){lhs.repr - rhs.repr};
 }
 
-/// Saturating subtraction of two {{type}} numbers
+/// Saturating subtraction of two fix64 numbers
 ///
 /// @param lhs left hand side for the subtraction
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
-static inline {{type}}_t {{type}}_sub_sat({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_sub_sat(fix64_t lhs, fix64_t rhs) {
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
-    {{type}}_t result;
+    fix64_t result;
     int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
-        result = (rhs.repr > 0) ? {{type | upper}}_MIN : {{type | upper}}_MAX;
+        result = (rhs.repr > 0) ? FIX64_MIN : FIX64_MAX;
     }
     return result;
 }
 
-/// Multiplication of two {{type}}_t numbers
+/// Multiplication of two fix64_t numbers
 ///
 /// @param lhs left hand side for the multiplication
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
-static inline {{type}}_t {{type}}_mul({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
     // TODO don't rely on int128_t?
     int128_t result = ((int128_t)lhs.repr * rhs.repr);
     // add one to the bit below the LSB of the final result for rounding
-    result += ({{repr.const(1)}} << ({{type | upper}}_FRAC_BITS - 1));
-    result >>= {{type | upper}}_FRAC_BITS;
-    return ({{type}}_t){({{repr.type}}_t)result};
+    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1));
+    result >>= FIX64_FRAC_BITS;
+    return (fix64_t){(int64_t)result};
 }
 
-/// Saturating multiplication of two {{type}}_t numbers
+/// Saturating multiplication of two fix64_t numbers
 ///
 /// @param lhs left hand side for the multiplication
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
-static inline {{type}}_t {{type}}_mul_sat({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
     // TODO don't rely on int128_t?
     int128_t result = ((int128_t)lhs.repr * rhs.repr);
     // add one to the bit below the LSB of the final result for rounding
-    result += ({{repr.const(1)}} << ({{type | upper}}_FRAC_BITS - 1));
-    result >>= {{type | upper}}_FRAC_BITS;
-    if (FIX64_UNLIKELY(result > (int128_t){{repr.type | upper}}_MAX)) {
-        result = {{repr.type | upper}}_MAX;
-    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.type | upper}}_MIN)) {
-        result = {{repr.type | upper}}_MIN;
+    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1));
+    result >>= FIX64_FRAC_BITS;
+    if (FIX64_UNLIKELY(result > (int128_t)INT64_MAX)) {
+        result = INT64_MAX;
+    } else if (FIX64_UNLIKELY(result < (int128_t)INT64_MIN)) {
+        result = INT64_MIN;
     }
-    return ({{type}}_t){({{repr.type}}_t)result};
+    return (fix64_t){(int64_t)result};
 }
 
-/// Division of two {{type}}_t numbers. Result is rounded to the nearest representable value
+/// Division of two fix64_t numbers. Result is rounded to the nearest representable value
 ///
 /// @param lhs dividend side for the division
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
-static inline {{type}}_t {{type}}_div({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
     // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << {{type | upper}}_FRAC_BITS);
+    int128_t dividend = ((int128_t)lhs.repr << FIX64_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
     int128_t result = dividend / rhs.repr;
-    return ({{type}}_t){({{repr.type}}_t)result};
+    return (fix64_t){(int64_t)result};
 }
 
-/// Saturating division of two {{type}}_t numbers. Result is rounded to the nearest representable
+/// Saturating division of two fix64_t numbers. Result is rounded to the nearest representable
 /// value. Division by zero is saturated depending on the sign of the dividend
 ///
 /// @param lhs dividend side for the division
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
-static inline {{type}}_t {{type}}_div_sat({{type}}_t lhs, {{type}}_t rhs) {
+static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
     if (FIX64_UNLIKELY(rhs.repr == 0)) {
-        return (lhs.repr > 0) ? {{type | upper}}_MAX : {{type | upper}}_MIN;
+        return (lhs.repr > 0) ? FIX64_MAX : FIX64_MIN;
     }
 
     // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << {{type | upper}}_FRAC_BITS);
+    int128_t dividend = ((int128_t)lhs.repr << FIX64_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
     int128_t result = dividend / rhs.repr;
-    if (FIX64_UNLIKELY(result > (int128_t){{repr.type | upper}}_MAX)) {
-        result = {{repr.type | upper}}_MAX;
-    } else if (FIX64_UNLIKELY(result < (int128_t){{repr.type | upper}}_MIN)) {
-        result = {{repr.type | upper}}_MIN;
+    if (FIX64_UNLIKELY(result > (int128_t)INT64_MAX)) {
+        result = INT64_MAX;
+    } else if (FIX64_UNLIKELY(result < (int128_t)INT64_MIN)) {
+        result = INT64_MIN;
     }
-    return ({{type}}_t){({{repr.type}}_t)result};
+    return (fix64_t){(int64_t)result};
 }
 
 //==========================================================
@@ -424,18 +418,17 @@ static inline {{type}}_t {{type}}_div_sat({{type}}_t lhs, {{type}}_t rhs) {
 ///
 /// @param arg the fixed point number to floor
 /// @return the floor of arg
-static inline {{type}}_t {{type}}_floor({{type}}_t arg) {
-    return ({{type}}_t){(arg.repr >> {{type | upper}}_FRAC_BITS) << {{type | upper}}_FRAC_BITS};
+static inline fix64_t fix64_floor(fix64_t arg) {
+    return (fix64_t){(arg.repr >> FIX64_FRAC_BITS) << FIX64_FRAC_BITS};
 }
 
 /// Rounds up to the nearest integral value greater than or equal to the fixed point argument
 ///
 /// @param arg the fixed point number to ceil
 /// @return the ceil of arg
-static inline {{type}}_t {{type}}_ceil({{type}}_t arg) {
+static inline fix64_t fix64_ceil(fix64_t arg) {
     // Add use floor and add (1 - eps) for rounding up
-    return {{type}}_floor({{type}}_add(arg, {{type}}_sub({{type | upper}}_ONE, {#
-    #}{{type | upper}}_EPSILON)));
+    return fix64_floor(fix64_add(arg, fix64_sub(FIX64_ONE, FIX64_EPSILON)));
 }
 
 /// Rounds the fixed point argument to the nearest integral value. Halfway values round away from
@@ -443,12 +436,11 @@ static inline {{type}}_t {{type}}_ceil({{type}}_t arg) {
 ///
 /// @param arg the fixed point number to round
 /// @return the rounded value
-static inline {{type}}_t {{type}}_round({{type}}_t arg) {
-    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
-        return {{type}}_floor({{type}}_add(arg, {{type}}_sub({{type | upper}}_HALF, {#
-            #}{{type | upper}}_EPSILON)));
+static inline fix64_t fix64_round(fix64_t arg) {
+    if (fix64_lt(arg, FIX64_ZERO)) {
+        return fix64_floor(fix64_add(arg, fix64_sub(FIX64_HALF, FIX64_EPSILON)));
     } else {
-        return {{type}}_floor({{type}}_add(arg, {{type | upper}}_HALF));
+        return fix64_floor(fix64_add(arg, FIX64_HALF));
     }
 }
 
@@ -456,53 +448,52 @@ static inline {{type}}_t {{type}}_round({{type}}_t arg) {
 ///
 /// @param arg the fixed point number to truncate
 /// @return the truncated value
-static inline {{type}}_t {{type}}_trunc({{type}}_t arg) {
-    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
-        return {{type}}_ceil(arg);
+static inline fix64_t fix64_trunc(fix64_t arg) {
+    if (fix64_lt(arg, FIX64_ZERO)) {
+        return fix64_ceil(arg);
     } else {
-        return {{type}}_floor(arg);
+        return fix64_floor(arg);
     }
 }
 
-/// Absolute value of a {{type}}_t number. Note: {{type}}_abs({{type | upper}}_MIN) returns {#
-#}{{type | upper}}_MAX.
+/// Absolute value of a fix64_t number. Note: fix64_abs(FIX64_MIN) returns FIX64_MAX.
 ///
 /// @param arg fixed point number
 /// @return absolute value of arg
-static inline {{type}}_t {{type}}_abs({{type}}_t arg) {
-    if ({{type}}_lt(arg, {{type | upper}}_ZERO)) {
-        return {{type}}_neg(arg);
+static inline fix64_t fix64_abs(fix64_t arg) {
+    if (fix64_lt(arg, FIX64_ZERO)) {
+        return fix64_neg(arg);
     } else {
         return arg;
     }
 }
 
-/// Returns the greater of two {{type}}_t numbers
+/// Returns the greater of two fix64_t numbers
 ///
 /// @param x a fixed point number
 /// @param y the other fixed point number
 /// @return the greater of x and y
-static inline {{type}}_t {{type}}_max({{type}}_t x, {{type}}_t y) {
-    return {{type}}_gt(x, y) ? x : y;
+static inline fix64_t fix64_max(fix64_t x, fix64_t y) {
+    return fix64_gt(x, y) ? x : y;
 }
 
-/// Returns the lesser of two {{type}}_t numbers
+/// Returns the lesser of two fix64_t numbers
 ///
 /// @param x a fixed point number
 /// @param y the other fixed point number
 /// @return the lesser of x and y
-static inline {{type}}_t {{type}}_min({{type}}_t x, {{type}}_t y) {
-    return {{type}}_lt(x, y) ? x : y;
+static inline fix64_t fix64_min(fix64_t x, fix64_t y) {
+    return fix64_lt(x, y) ? x : y;
 }
 
 /// Returns the absolute value of the difference between two numbers. The difference will saturate
-/// at {{type | upper}}_MAX
+/// at FIX64_MAX
 ///
 /// @param x a fixed point number
 /// @param y the other fixed point number
 /// @return the absolute difference
-static inline {{type}}_t {{type}}_dim({{type}}_t x, {{type}}_t y) {
-    return {{type}}_abs({{type}}_sub_sat(x, y));
+static inline fix64_t fix64_dim(fix64_t x, fix64_t y) {
+    return fix64_abs(fix64_sub_sat(x, y));
 }
 
 //==========================================================
@@ -513,46 +504,46 @@ static inline {{type}}_t {{type}}_dim({{type}}_t x, {{type}}_t y) {
 ///
 /// @param arg fixed point number
 /// @return e raised to the given power
-{{type}}_t {{type}}_exp({{type}}_t arg);
+fix64_t fix64_exp(fix64_t arg);
 
 /// Returns 2 raised to the given power
 ///
 /// @param arg fixed point number
 /// @return 2 raised to the given power
-{{type}}_t {{type}}_exp2({{type}}_t arg);
+fix64_t fix64_exp2(fix64_t arg);
 
 /// Returns e raised to the given power, minus one
 ///
 /// @param arg fixed point number
 /// @return e raised to the given power, minus one
-static inline {{type}}_t {{type}}_expm1({{type}}_t arg) {
-    return {{type}}_sub({{type}}_exp(arg), {{type | upper}}_ONE);
+static inline fix64_t fix64_expm1(fix64_t arg) {
+    return fix64_sub(fix64_exp(arg), FIX64_ONE);
 }
 
 /// Returns natural (base e) logarithm of a number
 ///
 /// @param arg fixed point number
 /// @return the natural logarithm
-{{type}}_t {{type}}_log({{type}}_t arg);
+fix64_t fix64_log(fix64_t arg);
 
 /// Returns base 10 logarithm of a number
 ///
 /// @param arg fixed point number
 /// @return the base 10 logarithm
-{{type}}_t {{type}}_log10({{type}}_t arg);
+fix64_t fix64_log10(fix64_t arg);
 
 /// Returns base 2 logarithm of a number
 ///
 /// @param arg fixed point number
 /// @return the base 2 logarithm
-{{type}}_t {{type}}_log2({{type}}_t arg);
+fix64_t fix64_log2(fix64_t arg);
 
 /// Returns natural (base e) logarithm of 1 plus the argument
 ///
 /// @param arg fixed point number
 /// @return the natural logarithm of 1 plus the argument
-static inline {{type}}_t {{type}}_log1p({{type}}_t arg) {
-    return {{type}}_log({{type}}_add_sat({{type | upper}}_ONE, arg));
+static inline fix64_t fix64_log1p(fix64_t arg) {
+    return fix64_log(fix64_add_sat(FIX64_ONE, arg));
 }
 
 //==========================================================
@@ -564,81 +555,79 @@ static inline {{type}}_t {{type}}_log1p({{type}}_t arg) {
 /// @param x the base
 /// @param y the exponent
 /// @return the base raised to the power of the exponent
-{{type}}_t {{type}}_pow({{type}}_t x, {{type}}_t y);
+fix64_t fix64_pow(fix64_t x, fix64_t y);
 
 /// Calculates a number's square root
 ///
 /// @param arg fixed point number
 /// @return the square root
-{{type}}_t {{type}}_sqrt({{type}}_t arg);
+fix64_t fix64_sqrt(fix64_t arg);
 
 /// Calculates a number's cube root
 ///
 /// @param arg fixed point number
 /// @return the cube root
-{{type}}_t {{type}}_cbrt({{type}}_t arg);
+fix64_t fix64_cbrt(fix64_t arg);
 
 /// Calculates the hypotenuse of a right-angled triangle given the two other sides
 ///
 /// @param x one side of the triangle
 /// @param y the other side of the triangle
 /// @return the length of the hypotenuse
-{{type}}_t {{type}}_hypot({{type}}_t x, {{type}}_t y);
+fix64_t fix64_hypot(fix64_t x, fix64_t y);
 
 //==========================================================
 // Trigonometric functions
 //==========================================================
 
 /// Computes the sine of a given angle. The result is extremely accurate, with a maximum error of
-/// +/-{{type | upper}}_EPSILON for <0.01% of inputs.
+/// +/-FIX64_EPSILON for <0.01% of inputs.
 ///
 /// @param angle the angle
 /// @return the sine of the angle
-{{type}}_t {{type}}_sin({{type}}_t angle);
+fix64_t fix64_sin(fix64_t angle);
 
 /// Computes the cosine of a given angle. The result is extremely accurate, with a maximum error of
-/// +/-{{type | upper}}_EPSILON for <0.01% of inputs.
+/// +/-FIX64_EPSILON for <0.01% of inputs.
 ///
 /// @param angle the angle
 /// @return the cosine of the angle
-{{type}}_t {{type}}_cos({{type}}_t angle);
+fix64_t fix64_cos(fix64_t angle);
 
 /// Computes the tangent of a given angle. The result is extremely accurate, with a maximum error
-/// of +/-{{type | upper}}_EPSILON for <0.01% of angles >0.0001pi from a singularity. Near the {#
-#}singularities
+/// of +/-FIX64_EPSILON for <0.01% of angles >0.0001pi from a singularity. Near the singularities
 /// at +/-pi/2 the absolute error increases. The relative error remains small (less than 1e-12).
-/// Extremely large results are saturated at {{type | upper}}_MAX or {{type | upper}}_MIN {#
-#}depending on the sign.
+/// Extremely large results are saturated at FIX64_MAX or FIX64_MIN depending on the sign.
 ///
 /// @param angle the angle
 /// @return the tangent of the angle
-{{type}}_t {{type}}_tan({{type}}_t angle);
+fix64_t fix64_tan(fix64_t angle);
 
 /// Computes arc sine of a given number
 ///
 /// @param arg fixed point number
 /// @return the arc sine
-{{type}}_t {{type}}_asin({{type}}_t arg);
+fix64_t fix64_asin(fix64_t arg);
 
 /// Computes arc cosine of a given number
 ///
 /// @param arg fixed point number
 /// @return the arc cosine
-{{type}}_t {{type}}_acos({{type}}_t arg);
+fix64_t fix64_acos(fix64_t arg);
 
 /// Computes 2 argument arc tangent of a given pair of numbers
 ///
 /// @param x the horizontal component
 /// @param y the vertical component
 /// @return the arc tangent of y/x, taking their signs into account
-{{type}}_t {{type}}_atan2({{type}}_t x, {{type}}_t y);
+fix64_t fix64_atan2(fix64_t x, fix64_t y);
 
 /// Computes arc tangent of a given number
 ///
 /// @param arg fixed point number
 /// @return the arc tangent
-static inline {{type}}_t {{type}}_atan({{type}}_t arg) {
-    return {{type}}_atan2(arg, {{type | upper}}_ONE);
+static inline fix64_t fix64_atan(fix64_t arg) {
+    return fix64_atan2(arg, FIX64_ONE);
 }
 
 //==========================================================
@@ -649,25 +638,25 @@ static inline {{type}}_t {{type}}_atan({{type}}_t arg) {
 ///
 /// @param arg a fixed point number
 /// @return the result of the error function
-{{type}}_t {{type}}_erf({{type}}_t arg);
+fix64_t fix64_erf(fix64_t arg);
 
 /// computes complementary error function
 ///
 /// @param arg a fixed point number
 /// @return the result of the complementary error function
-{{type}}_t {{type}}_erfc({{type}}_t arg);
+fix64_t fix64_erfc(fix64_t arg);
 
 /// computes gamma function
 ///
 /// @param arg a fixed point number
 /// @return the result of the gamma function
-{{type}}_t {{type}}_tgamma({{type}}_t arg);
+fix64_t fix64_tgamma(fix64_t arg);
 
 /// computes natural logarithm of the gamma function
 ///
 /// @param arg a fixed point number
 /// @return the natural logarithm of the result of the gamma function
-{{type}}_t {{type}}_lgamma({{type}}_t arg);
+fix64_t fix64_lgamma(fix64_t arg);
 
 #ifdef __cplusplus
 }
