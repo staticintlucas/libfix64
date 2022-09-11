@@ -86,6 +86,7 @@ def bad_path_error(path, reason):
     sys.exit(1)
 
 def subprocess_error(cmd, code):
+    cmd = cmd if isinstance(cmd, list) else [cmd]
     print(
         "",
         f"\x1b[1;31mError:\x1b[0m Subprocess \x1b[1m{' '.join(cmd)}\x1b[0m failed!"
