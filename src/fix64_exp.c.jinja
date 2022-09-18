@@ -3,6 +3,7 @@
 {{autogen_comment}}
 
 {% set exp_frac_bits = 64 %}
+{% set mul_frac_bits = 63 %} {# Need one int bit to be able to store log2(e) #}
 
 #include "fix64.h"
 
@@ -11,6 +12,7 @@
 
 // Number fractional bits
 #define EXP_FRAC_BITS {{exp_frac_bits}}
+#define MUL_FRAC_BITS {{mul_frac_bits}}
 
 // Calculates 2**x-1 for UQ0.64 fixed point numbers
 static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
@@ -55,14 +57,7 @@ static uint64_t turner_log21p_impl(uint64_t arg) {
     return result << (EXP_FRAC_BITS - (FIX64_FRAC_BITS + 1));
 }
 
-fix64_t fix64_exp(fix64_t arg) {
-    return FIX64_ZERO;
-}
-
-fix64_t fix64_exp2(fix64_t arg) {
-    int64_t ipart = fix64_to_int(arg); // Q31.0
-    uint64_t fpart = (arg.repr - fix64_from_int(ipart).repr) << (EXP_FRAC_BITS - FIX64_FRAC_BITS); // UQ0.64
-
+static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
     if (ipart >= FIX64_INT_BITS) {
         return FIX64_MAX;
     } else if (ipart < -FIX64_FRAC_BITS - 1) {
@@ -75,6 +70,25 @@ fix64_t fix64_exp2(fix64_t arg) {
     result >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS - ipart); // UQ31.32
 
     return (fix64_t){ result };
+}
+
+fix64_t fix64_exp(fix64_t arg) {
+    int128_t arg_log2e = (int128_t)arg.repr * (int128_t)
+        {{-const(consts.log2e.val, frac_bits=mul_frac_bits)}}; // Q32.95
+    arg_log2e += (int128_t)1 << (FIX64_FRAC_BITS + MUL_FRAC_BITS - 1 - EXP_FRAC_BITS); // rounding
+    arg_log2e >>= FIX64_FRAC_BITS + MUL_FRAC_BITS - EXP_FRAC_BITS; // Q32.64
+
+    int64_t ipart = (arg_log2e >> EXP_FRAC_BITS);
+    uint64_t fpart = arg_log2e & (((int128_t)1 << EXP_FRAC_BITS) - 1);
+
+    return fix64_exp2_inner(ipart, fpart);
+}
+
+fix64_t fix64_exp2(fix64_t arg) {
+    int64_t ipart = fix64_to_int(arg); // Q31.0
+    uint64_t fpart = (arg.repr - fix64_from_int(ipart).repr) << (EXP_FRAC_BITS - FIX64_FRAC_BITS); // UQ0.64
+
+    return fix64_exp2_inner(ipart, fpart);
 }
 
 fix64_t fix64_log(fix64_t arg) {
