@@ -59,6 +59,7 @@ def render(filename):
     }
 
     env = _jinja2.Environment(
+        keep_trailing_newline=True,
         loader=_jinja2.FileSystemLoader('src'),
         lstrip_blocks=True,
         trim_blocks=True,
