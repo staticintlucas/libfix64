@@ -5,10 +5,11 @@ A fast 64-bit (Q31.32) fixed point math library written in C99.
 Implements basic arithmetic function, comparison, conversion, exponentiation, powers, trigonometry,
 and more; including all relevant `math.h` functions for fixed point numbers.
 
-> **Note:** This library is still a work in progress. Not all functionality is complete yet.
+> :information_source: **Note:** This library is still a work in progress. Not all functionality
+is complete yet.
 
-> **Note:** Currently only 64-bit architectures are supported since `libfix64` leverages native
-64*64=128-bit multiplication for many functions.
+> :information_source: **Note:** Currently only 64-bit architectures are supported since
+`libfix64` leverages native 64*64=128-bit multiplication for many functions.
 
 ## Usage
 
