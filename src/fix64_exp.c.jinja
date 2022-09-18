@@ -41,7 +41,7 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
     };
 
     uint64_t powers[{{chebyshev_coefs["exp2m1"] | length}}];
-    powers[0] = 0; // Should be 1.0 which is too big for UQ0.64. But coefs[0] = 0 so it doesn't matter
+    powers[0] = 0; // Should be 1.0 which overflows UQ0.64. But coefs[0] = 0 so it doesn't matter
     powers[1] = arg;
     for (size_t i = 2; i < sizeof(powers) / sizeof(powers[0]); i++) {
         powers[i] = ((uint128_t)powers[i - 1] * arg) >> EXP_FRAC_BITS;
@@ -91,8 +91,8 @@ static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
 }
 
 fix64_t fix64_exp(fix64_t arg) {
-    int128_t arg_log2e = (int128_t)arg.repr * (int128_t)
-        {{-const(consts.log2e.val, frac_bits=mul_frac_bits)}}; // Q32.95
+    int128_t arg_log2e = (int128_t)arg.repr * {#
+        #}{{uconst(consts.log2e.val, frac_bits=mul_frac_bits)}}; // Q32.95
     arg_log2e += (int128_t)1 << (FIX64_FRAC_BITS + MUL_FRAC_BITS - 1 - EXP_FRAC_BITS); // rounding
     arg_log2e >>= FIX64_FRAC_BITS + MUL_FRAC_BITS - EXP_FRAC_BITS; // Q32.64
 
@@ -104,17 +104,34 @@ fix64_t fix64_exp(fix64_t arg) {
 
 fix64_t fix64_exp2(fix64_t arg) {
     int64_t ipart = fix64_to_int(arg); // Q31.0
-    uint64_t fpart = (arg.repr - fix64_from_int(ipart).repr) << (EXP_FRAC_BITS - FIX64_FRAC_BITS); // UQ0.64
+    uint64_t fmask = (UINT64_C(1) << FIX64_FRAC_BITS) - 1; // Mask for fractional bits
+    uint64_t fpart = (arg.repr & fmask) << (EXP_FRAC_BITS - FIX64_FRAC_BITS); // UQ0.64
 
     return fix64_exp2_inner(ipart, fpart);
 }
 
 fix64_t fix64_log(fix64_t arg) {
-    return FIX64_ZERO;
+    int64_t log2 = fix64_log2(arg).repr; // Q31.32
+
+    // ln(x) = log2(x) / log2(e) = log2(x) * (1/log2(e))
+    int128_t result = (int128_t)log2 *
+        {{-uconst(1 / consts.log2e.val, frac_bits=exp_frac_bits)}}; // Q31.96
+    result += (int128_t)1 << (EXP_FRAC_BITS - 1); // rounding
+    result >>= EXP_FRAC_BITS; // Q31.32
+
+    return (fix64_t){ result };
 }
 
 fix64_t fix64_log10(fix64_t arg) {
-    return FIX64_ZERO;
+    int64_t log2 = fix64_log2(arg).repr; // Q31.32
+
+    // log10(x) = log2(x) / log2(10) = log2(x) * (ln(2) / ln(10))
+    int128_t result = (int128_t)log2 *
+        {{-uconst(consts.ln2.val / consts.ln10.val, frac_bits=exp_frac_bits)}}; // Q31.96
+    result += (int128_t)1 << (EXP_FRAC_BITS - 1); // rounding
+    result >>= EXP_FRAC_BITS; // Q31.32
+
+    return (fix64_t){ result };
 }
 
 fix64_t fix64_log2(fix64_t arg) {
