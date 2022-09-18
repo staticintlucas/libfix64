@@ -26,9 +26,9 @@ python3 generate.py
 ~~~
 
 The generated source code can be found in the output directory.
-The library can then be compiled by running `make` in this directory.
+The library can be compiled by running `make` in this directory.
 
-Alternatively, the source code can be generated and compiled by running:
+Alternatively, the source code can be generated and compiled in one step by running:
 
 ~~~sh
 python3 generate.py --build
@@ -38,8 +38,9 @@ python3 generate.py --build
 
 ### Implementation
 
-Templates for C source code are found in the [src](src) directory.
-These use the Jinja2 templating language to populate things like constants calculated beforehand.
+Templates for C source code are located in the [src](src) directory.
+These use the [Jinja2](https://palletsprojects.com/p/jinja/) templating language
+to populate things like constants calculated at render time.
 
 Templates are rendered using the scripts in the [scripts](scripts) directory.
 The Python [mpmath](https://mpmath.org/) library is used for accurately calculating constants,
@@ -52,7 +53,7 @@ algorithms are used for certain functions where polynomial approximations are le
 
 Tests are in the [test](test) directory.
 These are written in Python using [pytest](https://pytest.org)
-and call the compiled libfix64 code using Python's builtin ctypes library.
+and call the compiled libfix64 code using Python's builtin ctypes FFI library.
 
 To launch the tests, run:
 
