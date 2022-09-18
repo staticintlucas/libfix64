@@ -103,11 +103,10 @@ fix64_t fix64_log2(fix64_t arg) {
     #endif
 
     uint64_t fpart = repr << (lz + 1); // Q0.64
-    uint64_t fresult = chebyshev_log21p_impl(fpart);
-    fresult += UINT64_C(1) << (EXP_FRAC_BITS - FIX64_FRAC_BITS - 1); // rounding
-    fresult >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS); // Q0.32
-
-    int64_t result = ((FIX64_INT_BITS - lz) << FIX64_FRAC_BITS) + fresult; // Q31.32
+    int128_t result = ((int128_t)(FIX64_INT_BITS - lz) << EXP_FRAC_BITS) +
+        chebyshev_log21p_impl(fpart); // Q31.64
+    result += (int128_t)1 << (EXP_FRAC_BITS - FIX64_FRAC_BITS - 1); // rounding
+    result >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS); // Q31.32
 
     return (fix64_t){ result };
 }
