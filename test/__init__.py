@@ -61,8 +61,14 @@ def libfix64():
     lib.fix64_tan.argtypes = [c_int64]
     lib.fix64_tan.restype = c_int64
 
+    lib.fix64_exp.argtypes = [c_int64]
+    lib.fix64_exp.restype = c_int64
     lib.fix64_exp2.argtypes = [c_int64]
     lib.fix64_exp2.restype = c_int64
+    lib.fix64_log.argtypes = [c_int64]
+    lib.fix64_log.restype = c_int64
+    lib.fix64_log10.argtypes = [c_int64]
+    lib.fix64_log10.restype = c_int64
     lib.fix64_log2.argtypes = [c_int64]
     lib.fix64_log2.restype = c_int64
     yield lib
