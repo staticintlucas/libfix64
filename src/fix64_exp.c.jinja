@@ -35,6 +35,26 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
     return sum;
 }
 
+// Calculates log2(1+x) for UQ0.64 fixed point numbers
+// Based on Clay Turner's paper: http://www.claysturner.com/dsp/BinaryLogarithm.pdf
+static uint64_t chebyshev_log21p_impl(uint64_t arg) {
+    uint64_t result = 0;
+    for (size_t i = 0; i < (FIX64_FRAC_BITS + 1); i++) {
+        // (1+x)**2 - 1 == 2*x + x**2
+        uint128_t arg128 = ((uint128_t)arg << 1) + (((uint128_t)arg * arg) >> 64); // UQ64.64
+
+        result <<= 1;
+        if (arg128 >> EXP_FRAC_BITS) { // i.e. if (arg128 >= 1.0)
+            // arg+1 = (arg+1)/2 => arg = (arg-1)/2
+            arg = (uint64_t)((arg128 - ((uint128_t)1 << EXP_FRAC_BITS)) >> 1);
+            result |= 1;
+        } else {
+            arg = (uint64_t)arg128;
+        }
+    }
+    return result << (EXP_FRAC_BITS - (FIX64_FRAC_BITS + 1));
+}
+
 fix64_t fix64_exp(fix64_t arg) {
     return FIX64_ZERO;
 }
@@ -66,5 +86,28 @@ fix64_t fix64_log10(fix64_t arg) {
 }
 
 fix64_t fix64_log2(fix64_t arg) {
-    return FIX64_ZERO;
+    if (fix64_lte(arg, FIX64_ZERO)) {
+        return FIX64_MIN;
+    }
+
+    uint64_t repr = arg.repr;
+    int64_t lz;
+
+    #if __has_builtin(__builtin_clzll)
+        lz = __builtin_clzll(repr); // Q31.0
+    #else
+        lz = FIX64_BITS;
+        while (repr >>= 1) {
+            lz--;
+        }
+    #endif
+
+    uint64_t fpart = repr << (lz + 1); // Q0.64
+    uint64_t fresult = chebyshev_log21p_impl(fpart);
+    fresult += UINT64_C(1) << (EXP_FRAC_BITS - FIX64_FRAC_BITS - 1); // rounding
+    fresult >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS); // Q0.32
+
+    int64_t result = ((FIX64_INT_BITS - lz) << FIX64_FRAC_BITS) + fresult; // Q31.32
+
+    return (fix64_t){ result };
 }

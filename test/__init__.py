@@ -28,10 +28,24 @@ def sat_flt(x):
         x = fix2flt(FIX64_MIN)
     return x
 
-def fix_range(start, stop, n):
+def flt_range(start, stop, n):
     step = (stop - start) / (n - 1)
     for i in range(int(n)):
-        yield flt2fix(start + step * i)
+        yield start + step * i
+
+def fix_range(start, stop, n):
+    for step in flt_range(start, stop, n):
+        yield flt2fix(step)
+
+def flt_log_range(start, stop, n):
+    logstart = math.log(start)
+    logstop = math.log(stop)
+    for step in flt_range(logstart, logstop, n):
+        yield math.exp(step)
+
+def fix_log_range(start, stop, n):
+    for step in flt_log_range(start, stop, n):
+        yield flt2fix(step)
 
 def isclose(a, b):
     return math.isclose(a, b, rel_tol=1e-15, abs_tol=(1 / (1 << 32)))
@@ -49,4 +63,6 @@ def libfix64():
 
     lib.fix64_exp2.argtypes = [c_int64]
     lib.fix64_exp2.restype = c_int64
+    lib.fix64_log2.argtypes = [c_int64]
+    lib.fix64_log2.restype = c_int64
     yield lib
