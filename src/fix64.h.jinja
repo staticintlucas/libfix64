@@ -556,26 +556,38 @@ static inline fix64_t fix64_log1p(fix64_t arg) {
 /// @param x the base
 /// @param y the exponent
 /// @return the base raised to the power of the exponent
-fix64_t fix64_pow(fix64_t x, fix64_t y);
+static inline fix64_t fix64_pow(fix64_t x, fix64_t y) {
+    // TODO do this at higher precision?
+    return fix64_exp2(fix64_mul_sat(y, fix64_log2(x)));
+}
 
 /// Calculates a number's square root
 ///
 /// @param arg fixed point number
 /// @return the square root
-fix64_t fix64_sqrt(fix64_t arg);
+static inline fix64_t fix64_sqrt(fix64_t arg) {
+    // TODO do this at higher precision?
+    return fix64_pow(arg, FIX64_HALF);
+}
 
 /// Calculates a number's cube root
 ///
 /// @param arg fixed point number
 /// @return the cube root
-fix64_t fix64_cbrt(fix64_t arg);
+static inline fix64_t fix64_cbrt(fix64_t arg) {
+    // TODO do this at higher precision?
+    return fix64_pow(arg, (fix64_t){ {{-const(consts.one.val / 3)-}} });
+}
 
 /// Calculates the hypotenuse of a right-angled triangle given the two other sides
 ///
 /// @param x one side of the triangle
 /// @param y the other side of the triangle
 /// @return the length of the hypotenuse
-fix64_t fix64_hypot(fix64_t x, fix64_t y);
+static inline fix64_t fix64_hypot(fix64_t x, fix64_t y) {
+    // TODO do this at higher precision?
+    return fix64_sqrt(fix64_mul_sat(x, x), fix64_mul_sat(y, y));
+}
 
 //==========================================================
 // Trigonometric functions
