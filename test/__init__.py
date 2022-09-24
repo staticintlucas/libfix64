@@ -48,7 +48,7 @@ def fix_log_range(start, stop, n):
         yield flt2fix(step)
 
 def isclose(a, b):
-    return math.isclose(a, b, rel_tol=1e-15, abs_tol=(1 / (1 << 32)))
+    return math.isclose(a, b, rel_tol=1e-12, abs_tol=(1 / (1 << 32)))
 
 
 @pytest.fixture
