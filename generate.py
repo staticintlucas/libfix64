@@ -102,6 +102,7 @@ def subprocess_error(cmd, code):
         "    \x1b[1mhttps://github.com/staticintlucas/fix64/issues\x1b[0m",
         sep="\n", file=sys.stderr
     )
+    sys.exit(1)
 
 def some_other_error():
     import traceback
