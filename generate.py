@@ -48,8 +48,13 @@ def main(build=False, test=False, zip=False):
 
     if test:
         subprocess.run(("make", "tests"), cwd=OUT_DIR, check=True)
+
+        pytest_args = ["-x", str(TESTDIR)]
         import pytest
-        pytest.main(["-x", str(TESTDIR)])
+        result = pytest.main(pytest_args)
+        if result != 0:
+            # It's not a subprocess per se but close enough
+            raise subprocess.CalledProcessError(result, ("pytest", *pytest_args))
 
 # Error handling functions
 def not_installed_error(name):
