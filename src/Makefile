@@ -6,13 +6,17 @@ DESTDIR =
 SOURCES = $(wildcard *.c)
 HEADERS = $(wildcard *.h)
 OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%.o)
-DEPFILES = $(OBJECTS:%.o=%.d)
+TEST_OBJECTS = $(SOURCES:%.c=$(OBJDIR)/%_test.o)
 
 CFLAGS += -O3 -fPIC
 CFLAGS += -Wall -Wextra -Wpedantic
 CFLAGS += -std=c99
 CFLAGS += -I.
-LDFLAGS += -shared
+TEST_CFLAGS += -Og -fPIC
+TEST_CFLAGS += -Wall -Wextra -Wpedantic -Werror
+TEST_CFLAGS += -std=c99
+TEST_CFLAGS += -I. -DFIX64_TEST
+TEST_LDFLAGS += -shared
 
 .PHONY: all
 all: $(BUILDDIR)/libfix64.a
@@ -27,9 +31,9 @@ install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/include
 	cp -f ./fix64.h $(DESTDIR)$(PREFIX)/include
 
-$(BUILDDIR)/libfix64_tests.so: $(OBJECTS)
+$(BUILDDIR)/libfix64_tests.so: $(TEST_OBJECTS)
 	@mkdir -p $(@D)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(TEST_LDFLAGS) $^ -o $@
 
 $(BUILDDIR)/libfix64.a: $(OBJECTS)
 	@mkdir -p $(@D)
@@ -38,6 +42,10 @@ $(BUILDDIR)/libfix64.a: $(OBJECTS)
 $(OBJECTS): $(OBJDIR)/%.o: %.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TEST_OBJECTS): $(OBJDIR)/%_test.o: %.c $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(TEST_CFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:

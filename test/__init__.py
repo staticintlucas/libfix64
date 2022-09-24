@@ -10,45 +10,151 @@ OUT_DIR = ROOT / "output"
 OBJ_DIR = OUT_DIR / "build"
 TEST_SO = OBJ_DIR / "libfix64_tests.so"
 
+class Fix64Meta(type):
+    @property
+    def MAX(self):
+        return self.from_repr(self._REPR_MAX)
 
-FIX64_MAX = (1 << 63) - 1
-FIX64_MIN =  -(1 << 63)
+    @property
+    def MIN(self):
+        return self.from_repr(self._REPR_MIN)
 
-def flt2fix(x):
-    result = int(round(x * (1 << 32)))
-    return FIX64_MAX if result > FIX64_MAX else FIX64_MIN if result < FIX64_MIN else result
+    @property
+    def EPS(self):
+        return self.from_repr(1)
 
-def fix2flt(x):
-    return float(x) / (1 << 32)
+class Fix64(object, metaclass=Fix64Meta):
+    FRAC_BITS = 32
+    INT_BITS = 32
+    BITS = INT_BITS + FRAC_BITS
 
-def sat_flt(x):
-    if x > fix2flt(FIX64_MAX):
-        x = fix2flt(FIX64_MAX)
-    elif x < fix2flt(FIX64_MIN):
-        x = fix2flt(FIX64_MIN)
-    return x
+    _REPR_MAX = (1 << 63) - 1
+    _REPR_MIN = -(1 << 63)
 
-def flt_range(start, stop, n):
+    def __init__(self, val):
+        self._repr = int(round(val * (1 << Fix64.FRAC_BITS)))
+        self._sat()
+
+    @property
+    def repr(self):
+        return self._repr
+
+    @repr.setter
+    def repr(self, repr):
+        self._repr = repr
+
+    @classmethod
+    def from_repr(cls, repr):
+        result = cls(0)
+        result._repr = repr
+        return result
+
+    def _sat(self):
+        if self._repr > Fix64._REPR_MAX:
+            self._repr = Fix64._REPR_MAX
+        elif self._repr < Fix64._REPR_MIN:
+            self._repr = Fix64._REPR_MIN
+
+    def _overflow(self):
+        self._repr &= (1 << (Fix64.BITS + 1)) - 1
+        if self._repr & (1 << Fix64.BITS):
+            self._repr -= 1 << (Fix64.BITS + 1)
+
+    def __float__(self):
+        return self.repr / (1 << Fix64.FRAC_BITS)
+
+    def __int__(self):
+        return self.repr // (1 << Fix64.FRAC_BITS)
+
+    def __format__(self, format_spec):
+        return float(self).__format__(format_spec)
+
+    def __str__(self):
+        return f"{self:.10f}"
+
+    def __repr__(self):
+        return f"Fix64({self:.10f})"
+
+    def __eq__(self, other):
+        return self.repr == other.repr
+
+    def approx_eq(self, other):
+        return math.isclose(self, other, rel_tol=1e-12, abs_tol=Fix64.EPS)
+
+    def __lt__(self, other):
+        return self.repr < other.repr
+
+    def __gt__(self, other):
+        return self.repr > other.repr
+
+    def __le__(self, other):
+        return self.repr <= other.repr
+
+    def __ge__(self, other):
+        return self.repr >= other.repr
+
+    def __add__(self, other):
+        return Fix64.from_repr(self.repr + other.repr)._overflow()
+
+    def add_sat(self, other):
+        return Fix64.from_repr(self.repr + other.repr)._sat()
+
+    def __sub__(self, other):
+        return Fix64.from_repr(self.repr - other.repr)._overflow()
+
+    def sub_sat(self, other):
+        return Fix64.from_repr(self.repr - other.repr)._sat()
+
+    def __mul__(self, other):
+        return Fix64.from_repr(float(self) * float(other))._overflow()
+
+    def mul_sat(self, other):
+        return Fix64.from_repr(float(self) * float(other))._sat()
+
+    def __truediv__(self, other):
+        return Fix64.from_repr(float(self) / float(other))._overflow()
+
+    def div_sat(self, other):
+        return Fix64.from_repr(float(self) / float(other))._sat()
+
+    def __pow__(self, other, modulo=None):
+        return Fix64.from_repr(pow(float(self), float(other), modulo))._sat()
+
+    def __neg__(self):
+        return Fix64.from_repr(-self.repr)._sat()
+
+    def __pos__(self):
+        return self
+
+    def __abs__(self):
+        return Fix64.from_repr(abs(self.repr))._sat()
+
+    def __round__(self, ndigits=None):
+        return Fix64.from_repr(round(float(self), ndigits))._sat()
+
+    def __trunc__(self):
+        return Fix64.from_repr(math.trunc(float(self)))._sat()
+
+    def __floor__(self):
+        return Fix64.from_repr(math.floor(float(self)))._sat()
+
+    def __ceil__(self):
+        return Fix64.from_repr(math.ceil(float(self)))._sat()
+
+def _flt_range(start, stop, n):
     step = (stop - start) / (n - 1)
     for i in range(int(n)):
-        yield start + step * i
+        yield start + (i * step)
 
 def fix_range(start, stop, n):
-    for step in flt_range(start, stop, n):
-        yield flt2fix(step)
-
-def flt_log_range(start, stop, n):
-    logstart = math.log(start)
-    logstop = math.log(stop)
-    for step in flt_range(logstart, logstop, n):
-        yield math.exp(step)
+    for f in _flt_range(start, stop, n):
+        yield Fix64(f)
 
 def fix_log_range(start, stop, n):
-    for step in flt_log_range(start, stop, n):
-        yield flt2fix(step)
-
-def isclose(a, b):
-    return math.isclose(a, b, rel_tol=1e-12, abs_tol=(1 / (1 << 32)))
+    logstart = math.log(start)
+    logstop = math.log(stop)
+    for f in _flt_range(logstart, logstop, n):
+        yield Fix64(math.exp(f))
 
 
 @pytest.fixture
