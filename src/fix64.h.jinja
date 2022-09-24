@@ -586,7 +586,7 @@ static inline fix64_t fix64_cbrt(fix64_t arg) {
 /// @return the length of the hypotenuse
 static inline fix64_t fix64_hypot(fix64_t x, fix64_t y) {
     // TODO do this at higher precision?
-    return fix64_sqrt(fix64_mul_sat(x, x), fix64_mul_sat(y, y));
+    return fix64_sqrt(fix64_add_sat(fix64_mul_sat(x, x), fix64_mul_sat(y, y)));
 }
 
 //==========================================================
