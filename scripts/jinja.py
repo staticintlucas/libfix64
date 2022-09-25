@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-from . import consts
+import consts
 
+import sys
+from pathlib import Path
 import jinja2 as _jinja2
 from mpmath import mp as _mp
 
@@ -58,12 +60,22 @@ def render(filename):
         }
     }
 
+    filename = Path(filename)
     env = _jinja2.Environment(
         keep_trailing_newline=True,
-        loader=_jinja2.FileSystemLoader('src'),
+        loader=_jinja2.FileSystemLoader(filename.parent),
         lstrip_blocks=True,
         trim_blocks=True,
         undefined=_jinja2.StrictUndefined)
     template = env.get_template(filename.name)
 
     return template.render(args)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <input> <output>", file=sys.stderr)
+        sys.exit(1)
+
+    with open(sys.argv[2], "w") as f:
+        f.write(render(sys.argv[1]))

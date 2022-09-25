@@ -12,7 +12,8 @@ SCRIPTS = HERE / "scripts"
 TESTDIR = HERE / "test"
 
 def main(build=False, test=False, zip=False):
-    from scripts import jinja
+    sys.path.append(str(SCRIPTS))
+    import jinja
 
     OUT_DIR.mkdir(exist_ok=True)
 

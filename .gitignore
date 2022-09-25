@@ -1,6 +1,9 @@
 # Generated sources
 output/
 
+# Build directory
+build/
+
 # Python
 __pycache__/
 *.py[cod]
