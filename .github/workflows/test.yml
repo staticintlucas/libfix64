@@ -3,13 +3,13 @@ name: Test
 on: [push, pull_request]
 
 jobs:
-  test:
-    name: Build and test
+  test-old:
+    name: Build and test (old Python scripts)
     runs-on: Ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.7', '3.8', '3.9', '3.10']
         c-compiler: ['clang', 'gcc']
     steps:
     - name: Checkout repo
@@ -32,3 +32,33 @@ jobs:
       run: python generate.py --test
       env:
         CC: ${{ matrix.c-compiler }}
+  test:
+    name: Build and test
+    runs-on: Ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10']
+        c-compiler: ['clang', 'gcc']
+        cmake-version: ['v3.17.1', 'latest']
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+    - name: Install CMake ${{ matrix.cmake-version }}
+      uses: lukka/get-cmake@${{ matrix.cmake-version }}
+    - name: Configure project
+      run: |
+        cmake -S. -Bbuild -GNinja
+      env:
+        CC: ${{ matrix.c-compiler }}
+    - name: Build library
+      run: |
+        cmake --build build --parallel
