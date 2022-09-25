@@ -40,7 +40,7 @@ jobs:
       matrix:
         python-version: ['3.7', '3.8', '3.9', '3.10']
         c-compiler: ['clang', 'gcc']
-        cmake-version: ['v3.17.1', 'latest']
+        cmake-version: ['3.16', 'latest']
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
@@ -52,11 +52,13 @@ jobs:
       run: |
         pip install -U pip
         pip install -U -r requirements.txt
-    - name: Install CMake ${{ matrix.cmake-version }}
-      uses: lukka/get-cmake@${{ matrix.cmake-version }}
+    - name: Setup CMake ${{ matrix.cmake-version }}
+      uses: jwlawson/actions-setup-cmake@v1
+      with:
+        cmake-version: ${{ matrix.cmake-version }}
     - name: Configure project
       run: |
-        cmake -S. -Bbuild -GNinja
+        cmake -S. -Bbuild
       env:
         CC: ${{ matrix.c-compiler }}
     - name: Build library
