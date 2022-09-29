@@ -5,6 +5,7 @@
 {% set exp_frac_bits = 64 %}
 {% set mul_frac_bits = 63 %} {# Need one int bit to be able to store log2(e) #}
 
+#define FIX64_INTERNAL
 #include "fix64.h"
 
 #include <stddef.h>

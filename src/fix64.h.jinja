@@ -15,6 +15,7 @@ extern "C" {
 
 #ifndef __has_builtin
     #define __has_builtin(_) 0
+    #define FIX64_DEFINED_HAS_BUILTIN // Used to remember to undefine later
 #endif
 #if __has_builtin(__builtin_expect_with_probability)
     // Use __builtin_expect_with_probability if available with a probability of 0.9. GCC already
@@ -670,6 +671,17 @@ fix64_t fix64_tgamma(fix64_t arg);
 /// @param arg a fixed point number
 /// @return the natural logarithm of the result of the gamma function
 fix64_t fix64_lgamma(fix64_t arg);
+
+// Clean up defines if used as a public header
+#ifndef FIX64_INTERNAL
+    #ifdef FIX64_DEFINED_HAS_BUILTIN
+        #undef __has_builtin
+        #undef FIX64_DEFINED_HAS_BUILTIN
+    #endif
+
+    #undef FIX64_LIKELY
+    #undef FIX64_UNLIKELY
+#endif
 
 #ifdef __cplusplus
 }
