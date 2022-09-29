@@ -51,7 +51,7 @@ jobs:
     - name: Install Python requirements
       run: |
         pip install -U pip
-        pip install -U -r scripts/requirements.txt
+        pip install -U -r requirements.txt
     - name: Setup CMake ${{ matrix.cmake-version }}
       uses: jwlawson/actions-setup-cmake@v1
       with:
