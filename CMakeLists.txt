@@ -31,6 +31,11 @@ if(RESULT)
 endif()
 message(STATUS "Check for required Python modules - done")
 
+option(CMAKE_WARNINGS_AS_ERRORS "Treat all compile warnings as errors" OFF)
+if (CMAKE_WARNINGS_AS_ERRORS)
+    add_compile_options(-Werror)
+endif()
+
 set(JINJA_SOURCES
     "fix64.h"
     "fix64_exp.c"
