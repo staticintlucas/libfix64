@@ -3,35 +3,35 @@ name: Test
 on: [push, pull_request]
 
 jobs:
-  test-old:
-    name: Build and test (old Python scripts)
-    runs-on: Ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10']
-        c-compiler: ['clang', 'gcc']
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install Python requirements
-      run: |
-        pip install -U pip
-        pip install -U -r scripts/requirements.txt
-    - name: Generate sources
-      run: python generate.py
-    - name: Build library
-      run: python generate.py --build
-      env:
-        CC: ${{ matrix.c-compiler }}
-    - name: Run tests
-      run: python generate.py --test
-      env:
-        CC: ${{ matrix.c-compiler }}
+  # test-old:
+  #   name: Build and test (old Python scripts)
+  #   runs-on: Ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       python-version: ['3.7', '3.8', '3.9', '3.10']
+  #       c-compiler: ['clang', 'gcc']
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v3
+  #   - name: Setup Python ${{ matrix.python-version }}
+  #     uses: actions/setup-python@v4
+  #     with:
+  #       python-version: ${{ matrix.python-version }}
+  #   - name: Install Python requirements
+  #     run: |
+  #       pip install -U pip
+  #       pip install -U -r scripts/requirements.txt
+  #   - name: Generate sources
+  #     run: python generate.py
+  #   - name: Build library
+  #     run: python generate.py --build
+  #     env:
+  #       CC: ${{ matrix.c-compiler }}
+  #   - name: Run tests
+  #     run: python generate.py --test
+  #     env:
+  #       CC: ${{ matrix.c-compiler }}
   test:
     name: Build and test
     runs-on: Ubuntu-latest
@@ -40,7 +40,7 @@ jobs:
       matrix:
         python-version: ['3.7', '3.8', '3.9', '3.10']
         c-compiler: ['clang', 'gcc']
-        cmake-version: ['3.16', 'latest']
+        cmake-version: ['3.13', 'latest']
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
@@ -58,9 +58,15 @@ jobs:
         cmake-version: ${{ matrix.cmake-version }}
     - name: Configure project
       run: |
-        cmake -S. -Bbuild
+        cmake -S. -Bbuild -DCMAKE_WARNINGS_AS_ERRORS=1
       env:
         CC: ${{ matrix.c-compiler }}
     - name: Build library
       run: |
         cmake --build build --parallel
+    - name: Build & run tests
+      run: |
+        cd build
+        ctest --parallel 4
+      env:
+        CC: ${{ matrix.c-compiler }}
