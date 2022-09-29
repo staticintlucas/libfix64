@@ -161,9 +161,9 @@ fix64_t fix64_tan(fix64_t angle) {
     result >>= (CHEBYSHEV_FRAC_BITS - FIX64_FRAC_BITS); // Q31.32
 
     // Saturate result
-    if (result > INT64_MAX) {
+    if (FIX64_UNLIKELY(result > INT64_MAX)) {
         result = INT64_MAX;
-    } else if (result < INT64_MIN) {
+    } else if (FIX64_UNLIKELY(result < INT64_MIN)) {
         result = INT64_MIN;
     }
 
