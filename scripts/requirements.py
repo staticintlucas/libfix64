@@ -3,9 +3,7 @@
 from pathlib import Path
 import pkg_resources
 from pkg_resources import DistributionNotFound, VersionConflict
-import re
 import sys
-import textwrap
 
 HERE = Path(__file__).absolute().parent
 ROOT = HERE.parent
@@ -33,7 +31,7 @@ with open(REQUIREMENTS, "r") as file:
             if hasattr(e, "required_by"):
                 msg += f' by package "{", ".join(e.required_by)}"'
 
-            print(*textwrap.wrap(msg, 780), sep="\n", file=sys.stderr)
+            print(msg, sep="\n", file=sys.stderr)
 
         except DistributionNotFound as e:
             reqs_ok = False
@@ -44,6 +42,6 @@ with open(REQUIREMENTS, "r") as file:
             if e.requirers:
                 msg += f' by package "{", ".join(e.requirers)}"'
 
-            print(*textwrap.wrap(msg, 780), sep="\n", file=sys.stderr)
+            print(msg, sep="\n", file=sys.stderr)
 
 sys.exit(0 if reqs_ok else 1)
