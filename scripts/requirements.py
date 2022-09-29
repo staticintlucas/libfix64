@@ -7,7 +7,9 @@ import re
 import sys
 import textwrap
 
-REQUIREMENTS = Path(__file__).absolute().parent / "requirements.txt"
+HERE = Path(__file__).absolute().parent
+ROOT = HERE.parent
+REQUIREMENTS = ROOT / "requirements.txt"
 
 reqs_ok = True
 
