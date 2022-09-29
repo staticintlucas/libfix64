@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+# 3.12 required for FindPython3
+cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
-project(libfix64
-    VERSION 0.1.0
-    LANGUAGES C
-)
+project(libfix64 C)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+add_compile_options(-Wall -Wextra -pedantic)
 
 find_package(Python3 3.7 REQUIRED)
 
