@@ -40,8 +40,7 @@ jobs:
       matrix:
         python-version: ['3.7', '3.8', '3.9', '3.10']
         c-compiler: ['clang', 'gcc']
-        cmake-version: ['3.15', 'latest']
-        # 3.15 is the oldest passing CMake version due to CMP0094
+        cmake-version: ['3.13', 'latest']
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
