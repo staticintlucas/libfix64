@@ -8,11 +8,14 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_options(-Wall -Wextra -pedantic)
 
+enable_testing()
+
 find_package(Python3 3.7 REQUIRED)
 
 set(SCRIPT_DIR ${PROJECT_SOURCE_DIR}/scripts)
 set(JINJA_SRC_DIR ${PROJECT_SOURCE_DIR}/src)
 set(GENERATED_DIR ${PROJECT_BINARY_DIR}/src)
+set(TESTS_SRC_DIR ${PROJECT_SOURCE_DIR}/tests)
 file(MAKE_DIRECTORY ${GENERATED_DIR})
 
 message(STATUS "Check for required Python modules")
@@ -52,3 +55,31 @@ add_library(fix64 STATIC
 set_target_properties(fix64 PROPERTIES
     PUBLIC_HEADER "${GENERATED_DIR}/fix64.h"
 )
+
+set(TESTS
+    exp
+    exp2
+    log
+    log2
+    log10
+    sin
+    cos
+    tan
+)
+set(TEST_LINK_LIBRARIES fix64)
+
+# Link libm if it exists
+include(CheckLibraryExists)
+check_library_exists(m pow "" NEED_LIBM)
+if(NEED_LIBM)
+    list(APPEND TEST_LINK_LIBRARIES m)
+endif()
+
+foreach(TEST ${TESTS})
+    add_executable("test_${TEST}" EXCLUDE_FROM_ALL "${TESTS_SRC_DIR}/${TEST}.c")
+    target_include_directories("test_${TEST}" PRIVATE "${GENERATED_DIR}")
+    target_link_libraries("test_${TEST}" PRIVATE ${TEST_LINK_LIBRARIES})
+    add_test("build_${TEST}" "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target "test_${TEST}")
+    add_test("test_${TEST}" "test_${TEST}")
+    set_tests_properties("test_${TEST}" PROPERTIES DEPENDS "build_${TEST}") # Ensure tests are built
+endforeach()
