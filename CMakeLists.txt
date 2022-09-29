@@ -9,8 +9,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_options(-Wall -Wextra -pedantic)
 
 enable_testing()
-
-cmake_policy(SET CMP0094 NEW) # Finds first Python3 on PATH, otherwise breaks CI
+if(POLICY CMP0094)
+    cmake_policy(SET CMP0094 NEW) # Finds first Python3 on PATH, otherwise breaks CI
+endif()
 find_package(Python3 3.7 REQUIRED)
 
 set(SCRIPT_DIR ${PROJECT_SOURCE_DIR}/scripts)
