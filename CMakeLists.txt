@@ -64,14 +64,9 @@ set_target_properties(fix64 PROPERTIES
 )
 
 set(TESTS
-    exp
-    exp2
-    log
-    log2
-    log10
-    sin
-    cos
-    tan
+    sanity consts literals
+    exp exp2 log log2 log10
+    sin cos tan
 )
 set(TEST_LINK_LIBRARIES fix64)
 

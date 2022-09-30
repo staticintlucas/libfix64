@@ -6,7 +6,7 @@
 #include <fix64.h>
 
 static inline int approx_eq(fix64_t x, fix64_t y) {
-    int64_t rel_shr = 36;
+    int64_t rel_shr = 40;
     int64_t abs_tol = 1;
 
     int64_t diff = llabs(y.repr - x.repr);
