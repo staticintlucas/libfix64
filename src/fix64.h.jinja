@@ -78,7 +78,9 @@ typedef struct {
 // This function call will be inlined by the compiler, Clang 13 does this even with -Og
 
 /// Creates a fix64_t literal, for example FIX64_C(2.5)
-#define FIX64_C(x) (fix64_from_ldbl((long double)(x##L)))
+#define FIX64_C(x) ((fix64_t){ \
+    (int64_t)((long double)(x##L) * {{const(consts.one.val)}} + (x##l < 0.L ? -0.5L : 0.5L)) \
+})
 
 //==========================================================
 // Constants
