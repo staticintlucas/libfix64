@@ -57,7 +57,11 @@ def render(filename):
             "cos": consts.chebyshev_coefs(_mp.cos, [-consts.pi/4, consts.pi/4], 11),
             "tan": consts.chebyshev_coefs(_mp.tan, [-consts.pi/4, consts.pi/4], 26),
             "exp2m1": consts.chebyshev_coefs(lambda x: 2**x-1, [-1, 1], 13),
-        }
+        },
+        "digit_coefs": [
+            (len(str(1 << i)), max((1 << 32) - (10 ** len(str(1 << i))), 0))
+                for i in range(32)
+        ],
     }
 
     filename = Path(filename)
