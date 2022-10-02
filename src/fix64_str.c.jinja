@@ -1,0 +1,81 @@
+{#- jinja2 template for fix64_str.c -#}
+
+{{autogen_comment}}
+
+#define FIX64_INTERNAL
+#include "fix64.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
+static inline unsigned clz(uint32_t arg) {
+    unsigned result;
+    #if __has_builtin(__builtin_clz)
+        result = (FIX64_UNLIKELY(arg == 0) ? (CHAR_BIT * sizeof(arg)) : __builtin_clz(arg));
+    #else
+        result = 0;
+        for (uint32_t sh = (CHAR_BIT * sizeof(uint32_t)) >> 1; sh; sh >>= 1) {
+            uint32_t tmp = arg >> sh;
+            if (tmp) {
+                arg = tmp;
+            } else {
+                result |= sh;
+            }
+        }
+    #endif
+    return result;
+}
+
+static unsigned digits(uint32_t arg) {
+    static const uint32_t pow10[] = {
+        0, 10, 100, // First entry is 0 because 0 still takes up 1 digit
+        1000, 10000, 100000,
+        1000000, 10000000, 100000000,
+        1000000000, // Anything larger is >FIX64_FRAC_BIT bits
+    };
+    unsigned bits = sizeof(arg) * CHAR_BIT - clz(arg);
+    unsigned digits = 1 + (bits * 1233 >> 12); // x * 1233 >> 12 ~= x / log2(10)
+    return digits - (arg < pow10[digits - 1]);
+}
+
+size_t fix64_to_str(char *buf, fix64_t val, size_t size) {
+
+    static const unsigned prec = 5;
+    static const unsigned rounding = 21475; // = 0.5 / 10^prec * 2^FIX64_FRAC_BITS
+    char tmpbuf[256];
+    char *tmpptr = tmpbuf;
+
+    uint64_t repr = val.repr;
+    if (val.repr < 0) {
+        *tmpptr++ = '-';
+        repr = UINT64_C(0) - val.repr;
+    }
+    repr += rounding;
+
+    uint64_t ipart = repr >> FIX64_FRAC_BITS;
+    uint64_t fpart = repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+
+    tmpptr += digits(ipart);
+    char *istart = tmpptr - 1;
+    do {
+        *istart-- = '0' + (ipart % 10);
+        ipart /= 10;
+    } while(ipart);
+
+    *tmpptr++ = '.';
+    for (size_t i = 0; i < prec; i++) {
+        fpart *= 10;
+        *tmpptr++ = '0' + (fpart >> FIX64_FRAC_BITS);
+        fpart &= ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+    }
+
+    size_t len = tmpptr - tmpbuf;
+    size_t end = (len > size) ? size : len;
+
+    for (size_t i = 0; i < end; i++) {
+        buf[i] = tmpbuf[i];
+    }
+    buf[end] = 0;
+
+    return len;
+}

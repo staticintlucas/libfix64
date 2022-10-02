@@ -11,6 +11,7 @@ extern "C" {
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifndef __has_builtin
@@ -212,6 +213,26 @@ static inline fix64_t fix64_from_{{f.short}}({{type}} value) {
 }
 
 {% endfor -%}
+
+//==========================================================
+// String conversions
+//==========================================================
+
+/// Converts a fix64_t value to its string representation. If the buffer is too short the result is
+/// truncated. If the destination buffer is NULL or the size is 0 no data is written. Regardless,
+/// the total number of characters that would have been written without truncation is returned.
+/// Overflow can easily be detected by checking:
+/// \code
+///     if (fix64_to_str(buf, value, size) >= size) {
+///         // truncation occurred!
+///     }
+/// \endcode
+///
+/// @param buf a string buffer to write the string to
+/// @param value the fix64_t value to convert
+/// @param size the total size of the string buffer used for bounds checking
+/// @return the number of characters that would have been written without truncation
+size_t fix64_to_str(char *buf, fix64_t val, size_t size);
 
 //==========================================================
 // Comparison functions

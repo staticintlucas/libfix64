@@ -41,6 +41,7 @@ endif()
 set(JINJA_SOURCES
     "fix64.h"
     "fix64_exp.c"
+    "fix64_str.c"
     "fix64_trig.c"
 )
 set(GENERATED_SOURCES "")
