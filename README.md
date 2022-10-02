@@ -38,12 +38,12 @@ cmake --build build --parallel
 ### Implementation
 
 Templates for C source code are located in the [src](src) directory.
-These use the [Jinja2](https://palletsprojects.com/p/jinja/) templating language
-to populate things like constants calculated at render time.
+These use the [Jinja2] templating language which the Python scripts populate
+with things like mathematical constants, etc.
 
 Templates are rendered using the scripts in the [scripts](scripts) directory.
-The Python [mpmath](https://mpmath.org/) library is used for accurately calculating constants,
-since a Python `float` or C `double` only have 53 bits of precision.
+The Python [mpmath] library is used for accurately calculating constants,
+since a Python `float` or a C `double` only have 53 bits of precision.
 
 Most non-trivial mathematical functions are calculated using Chebyshev polynomials, although other
 algorithms are used for certain functions where polynomial approximations are less suitable.
@@ -51,8 +51,7 @@ algorithms are used for certain functions where polynomial approximations are le
 ### Tests
 
 Tests are in the [tests](tests) directory.
-These are written in C using [ctest](https://cmake.org/cmake/help/latest/manual/ctest.1.html)
-and call the compiled libfix64 code using Python's builtin ctypes FFI library.
+These are a collection of executables written in C using [ctest] and link to the compiled library.
 
 To launch the tests, run:
 
@@ -60,3 +59,7 @@ To launch the tests, run:
 cd build
 ctest --parallel 8
 ~~~
+
+[jinja2]: https://palletsprojects.com/p/jinja/
+[mpmath]: https://mpmath.org/
+[ctest]: https://cmake.org/cmake/help/latest/manual/ctest.1.html
