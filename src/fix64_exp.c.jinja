@@ -7,6 +7,7 @@
 
 #define FIX64_INTERNAL
 #include "fix64.h"
+#include "fix64_inline.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -14,24 +15,6 @@
 // Number fractional bits
 #define EXP_FRAC_BITS {{exp_frac_bits}}
 #define MUL_FRAC_BITS {{mul_frac_bits}}
-
-static inline unsigned clz(uint64_t arg) {
-    unsigned result;
-    #if __has_builtin(__builtin_clzll)
-        result = __builtin_clzll(arg);
-    #else
-        result = 0;
-        for (uint64_t sh = (CHAR_BIT * sizeof(uint64_t)) >> 1; sh; sh >>= 1) {
-            uint64_t tmp = arg >> sh;
-            if (tmp) {
-                arg = tmp;
-            } else {
-                result |= sh;
-            }
-        }
-    #endif
-    return result;
-}
 
 // Calculates 2**x-1 for UQ0.64 fixed point numbers
 static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
@@ -140,7 +123,7 @@ fix64_t fix64_log2(fix64_t arg) {
         return FIX64_MIN;
     }
 
-    int64_t lz = clz(arg.repr); // Q31.0
+    int64_t lz = clz64(arg.repr); // Q31.0
     uint64_t fpart = arg.repr << (lz + 1); // Q0.64
     int128_t result = ((int128_t)(FIX64_INT_BITS - lz) << EXP_FRAC_BITS) +
         turner_log21p_impl(fpart); // Q31.64

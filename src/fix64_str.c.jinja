@@ -4,29 +4,10 @@
 
 #define FIX64_INTERNAL
 #include "fix64.h"
+#include "fix64_inline.h"
 
 #include <stddef.h>
 #include <stdint.h>
-
-static inline unsigned clz(uint32_t arg) {
-    unsigned result;
-    #if __has_builtin(__builtin_clz)
-        // clz has UB when arg == 0, and log2 is also undefined. But 0 still has 1 digit so we
-        // or with 1 to return 31 in this case
-        result = __builtin_clz(arg | 1);
-    #else
-        result = 0;
-        for (uint32_t sh = (CHAR_BIT * sizeof(uint32_t)) >> 1; sh; sh >>= 1) {
-            uint32_t tmp = arg >> sh;
-            if (tmp) {
-                arg = tmp;
-            } else {
-                result |= sh;
-            }
-        }
-    #endif
-    return result;
-}
 
 // Algorithm to calculate number of decimal digits based on https://commaok.xyz/post/lookup_tables/
 // and https://lemire.me/blog/2021/06/03/computing-the-number-of-digits-of-an-integer-even-faster/
@@ -37,7 +18,8 @@ static unsigned digits(uint32_t arg) {
         UINT64_C({{"{:#03x}".format(coef[0])}}) << 32 | UINT64_C({{"{:#010x}".format(coef[1])}}),
 {% endfor %}
     };
-    return (arg + table[31 - clz(arg)]) >> 32;
+    // Use (arg | 1) because "0" still needs 1 digit
+    return (arg + table[31 - clz32(arg | 1)]) >> 32;
 }
 
 size_t fix64_to_str(char *buf, fix64_t val, size_t size) {

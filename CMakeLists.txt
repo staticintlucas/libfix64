@@ -1,4 +1,4 @@
-# 3.12 required for FindPython3
+# 3.12 required for FindPython3 and list(TRANSFORM ...)
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
 project(libfix64 C)
@@ -15,7 +15,7 @@ endif()
 find_package(Python3 3.7 REQUIRED)
 
 set(SCRIPT_DIR ${PROJECT_SOURCE_DIR}/scripts)
-set(JINJA_SRC_DIR ${PROJECT_SOURCE_DIR}/src)
+set(SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
 set(GENERATED_DIR ${PROJECT_BINARY_DIR}/src)
 set(TESTS_SRC_DIR ${PROJECT_SOURCE_DIR}/tests)
 file(MAKE_DIRECTORY ${GENERATED_DIR})
@@ -38,6 +38,9 @@ if (CMAKE_WARNINGS_AS_ERRORS)
     add_compile_options(-Werror)
 endif()
 
+set(SOURCES
+    "fix64_inline.h"
+)
 set(JINJA_SOURCES
     "fix64.h"
     "fix64_exp.c"
@@ -46,20 +49,22 @@ set(JINJA_SOURCES
 )
 set(GENERATED_SOURCES "")
 
+list(TRANSFORM SOURCES PREPEND "${SOURCE_DIR}/")
 foreach(SRC ${JINJA_SOURCES})
     add_custom_command(
         OUTPUT "${GENERATED_DIR}/${SRC}"
         COMMAND ${Python3_EXECUTABLE} jinja.py
-            "${JINJA_SRC_DIR}/${SRC}.jinja" "${GENERATED_DIR}/${SRC}"
+            "${SOURCE_DIR}/${SRC}.jinja" "${GENERATED_DIR}/${SRC}"
         WORKING_DIRECTORY "${SCRIPT_DIR}"
-        DEPENDS "${JINJA_SRC_DIR}/${SRC}.jinja"
+        DEPENDS "${SOURCE_DIR}/${SRC}.jinja"
     )
     list(APPEND GENERATED_SOURCES "${GENERATED_DIR}/${SRC}")
 endforeach()
 
 add_library(fix64 STATIC
-    ${GENERATED_SOURCES}
+    ${SOURCES} ${GENERATED_SOURCES}
 )
+target_include_directories(fix64 PRIVATE "${SOURCE_DIR}")
 set_target_properties(fix64 PROPERTIES
     PUBLIC_HEADER "${GENERATED_DIR}/fix64.h"
 )
