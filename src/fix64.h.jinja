@@ -292,6 +292,25 @@ static inline size_t fix64_to_str(char *buf, fix64_t val, size_t size) {
     return fix64_to_str_fmt(buf, val, size, fmt);
 }
 
+/// Converts a fix64_t value to its hexadecimal string representation. If the buffer is too short
+/// the result is truncated. If the destination buffer is NULL or the size is 0 no data is written.
+/// The total number of characters that would have been written without truncation is returned.
+/// Truncation can be detected by checking:
+/// \code
+///     if (fix64_to_hex(buf, value, size) >= size) {
+///         // truncation occurred!
+///     }
+/// \endcode
+///
+/// @param buf a string buffer to write the string to
+/// @param value the fix64_t value to convert
+/// @param size the total size of the string buffer used for bounds checking
+/// @return the number of characters that would have been written without truncation
+static inline size_t fix64_to_hex(char *buf, fix64_t val, size_t size) {
+    fix64_fmt_param_t fmt = { .decimals = -4, .base = FIX64_BASE_HEXADECIMAL };
+    return fix64_to_str_fmt(buf, val, size, fmt);
+}
+
 //==========================================================
 // Comparison functions
 //==========================================================
