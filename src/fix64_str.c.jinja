@@ -135,7 +135,7 @@ size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t f
     if (negative || fmt.plus_sign || fmt.space_sign) {
         n_pad--;
     }
-    if (fmt.base_pfx && !fmt.base == FIX64_BASE_DECIMAL) {
+    if (fmt.base_pfx && !(fmt.base == FIX64_BASE_DECIMAL)) {
         n_pad -= 2;
     }
 
