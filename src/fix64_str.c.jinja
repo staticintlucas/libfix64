@@ -7,6 +7,7 @@
 #include "fix64_inline.h"
 
 #include <stddef.h>
+#include <string.h>
 #include <stdint.h>
 
 // Algorithm to calculate number of decimal digits based on https://commaok.xyz/post/lookup_tables/
@@ -22,44 +23,163 @@ static unsigned digits(uint32_t arg) {
     return (arg + table[31 - clz32(arg | 1)]) >> 32;
 }
 
-size_t fix64_to_str(char *buf, fix64_t val, size_t size) {
+static inline const char *decimal_100(uint32_t x) {
+    return &(
+        "00010203040506070809"
+        "10111213141516171819"
+        "20212223242526272829"
+        "30313233343536373839"
+        "40414243444546474849"
+        "50515253545556575859"
+        "60616263646566676869"
+        "70717273747576777879"
+        "80818283848586878889"
+        "90919293949596979899"[x * 2]);
+}
 
-    static const unsigned prec = 5;
-    static const unsigned rounding = 21475; // = 0.5 / 10^prec * 2^FIX64_FRAC_BITS
-    char tmpbuf[256];
-    char *tmpptr = tmpbuf;
+static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
+    static uint64_t rounding[] = {
+        // = 0.5 / 10^prec as a UQ0.64
+{% for coef in rounding_coefs %}
+        {{uconst(coef, frac_bits=64, digits=16)}},
+{% endfor %}
+    };
+    const unsigned max_prec = sizeof(rounding) / sizeof(rounding[0]) - 1;
+    prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
+
+    uint32_t ipart = repr >> FIX64_FRAC_BITS;
+    uint64_t fpart = (repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1)) <<
+        (64 - FIX64_FRAC_BITS);
+
+    // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
+    // saturation code for any implementation that doesn't use __builtin_*_overflow
+    if (__builtin_add_overflow(fpart, rounding[prec], &fpart)) {
+        // This won't overflow since ipart only uses 31 bits since it comes from a signed int32_t
+        ipart++;
+    }
+
+    unsigned idigits = digits(ipart);
+    buf += idigits;
+    char *end = buf;
+    while (ipart >= 10) {
+        buf -= 2;
+        const char *d = decimal_100(ipart % 100);
+        buf[0] = d[0];
+        buf[1] = d[1];
+        ipart /= 100;
+    }
+    if (ipart) {
+        *(--buf) = '0' + ipart;
+    }
+    if (FIX64_UNLIKELY(!prec)) {
+        *end = '\0';
+        return end;
+    }
+    *(end++) = '.';
+
+    while (prec >= 2) {
+        prec -= 2;
+        uint128_t tmp = (uint128_t)fpart * 100;
+        const char *d = decimal_100(tmp >> 64);
+        *(end++) = *(d++);
+        *(end++) = *d;
+        fpart = (uint64_t)tmp;
+    }
+    if (prec) {
+        uint128_t tmp = (uint128_t)fpart * 10;
+        *(end++) = '0' + (tmp >> 64);
+    }
+    return end;
+}
+
+size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t fmt) {
+
+    char tmp_buf[256]; // number is formatted here, max width = 255 + 1 for the nul
+    char *end = tmp_buf; // points to end of buf
 
     uint64_t repr = val.repr;
+    int negative = 0;
     if (val.repr < 0) {
-        *tmpptr++ = '-';
         repr = UINT64_C(0) - val.repr;
-    }
-    repr += rounding;
-
-    uint64_t ipart = repr >> FIX64_FRAC_BITS;
-    uint64_t fpart = repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
-
-    tmpptr += digits(ipart);
-    char *istart = tmpptr - 1;
-    do {
-        *istart-- = '0' + (ipart % 10);
-        ipart /= 10;
-    } while(ipart);
-
-    *tmpptr++ = '.';
-    for (size_t i = 0; i < prec; i++) {
-        fpart *= 10;
-        *tmpptr++ = '0' + (fpart >> FIX64_FRAC_BITS);
-        fpart &= ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+        negative = 1;
     }
 
-    size_t len = tmpptr - tmpbuf;
-    size_t end = (len > size) ? size : len;
-
-    for (size_t i = 0; i < end; i++) {
-        buf[i] = tmpbuf[i];
+    unsigned prec = fmt.decimals;
+    int trim_0 = 0;
+    if (fmt.decimals < 0) {
+        prec = 0u - fmt.decimals;
+        trim_0 = 1;
     }
-    buf[end] = 0;
 
-    return len;
+    char num_buf[72]; // For binary formatting, 64 bits + '.' + alignment
+    char *num_end; // points to end of num_buf
+    if (fmt.base == FIX64_BASE_DECIMAL) {
+        num_end = fmt_frac_10(num_buf, repr, prec);
+    } else {
+        // TODO
+        num_end = num_buf;
+    }
+
+    // Only trim zeros if we actually have a fractional part
+    if (prec && trim_0) {
+        while (num_end > num_buf && *(num_end - 1) == '0') {
+            num_end--;
+        }
+        if (num_end > num_buf && *(num_end - 1) == '.') {
+            num_end--;
+        }
+    }
+    int64_t num_len = num_end - num_buf;
+
+    int64_t n_pad = fmt.width - num_len;
+    if (negative || fmt.plus_sign || fmt.space_sign) {
+        n_pad--;
+    }
+    if (fmt.base_pfx && !fmt.base == FIX64_BASE_DECIMAL) {
+        n_pad -= 2;
+    }
+
+    if (n_pad > 0 && !fmt.pad_0) { // i.e. pad with spaces
+        memset(end, ' ', n_pad);
+        end += n_pad;
+    }
+
+    if (negative) {
+        *(end++) = '-';
+    } else if (fmt.plus_sign) {
+        *(end++) = '+';
+    } else if (fmt.space_sign) {
+        *(end++) = ' ';
+    }
+
+    if (fmt.base_pfx) {
+        if (fmt.base == FIX64_BASE_BINARY) {
+            *(end++) = '0';
+            *(end++) = fmt.uppercase ? 'B' : 'b';
+        } else if (fmt.base == FIX64_BASE_OCTAL) {
+            *(end++) = '0';
+            *(end++) = fmt.uppercase ? 'O' : 'o';
+        } else if (fmt.base == FIX64_BASE_HEXADECIMAL) {
+            *(end++) = '0';
+            *(end++) = fmt.uppercase ? 'X' : 'x';
+        }
+    }
+
+    if (n_pad > 0 && fmt.pad_0) {
+        memset(end, '0', n_pad);
+        end += n_pad;
+    }
+
+    memcpy(end, num_buf, num_len);
+    end += num_len;
+    *(end++) = '\0';
+
+    size_t len = end - tmp_buf;
+    if (len < size) {
+        size = len;
+    }
+    if (buf && size) {
+        memcpy(buf, tmp_buf, size);
+    }
+    return len - 1; // don't include the '\0' in the length
 }

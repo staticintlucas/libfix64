@@ -62,6 +62,9 @@ def render(filename):
             (len(str(1 << i)), max((1 << 32) - (10 ** len(str(1 << i))), 0))
                 for i in range(32)
         ],
+        "rounding_coefs": [
+            consts.half / (10 ** i) for i in range(len(str(2 ** 64)))
+        ],
     }
 
     filename = Path(filename)
