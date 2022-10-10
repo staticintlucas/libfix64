@@ -87,7 +87,9 @@ foreach(TEST ${TESTS})
     add_executable("test_${TEST}" EXCLUDE_FROM_ALL "${TESTS_SRC_DIR}/${TEST}.c")
     target_include_directories("test_${TEST}" PRIVATE "${GENERATED_DIR}")
     target_link_libraries("test_${TEST}" PRIVATE ${TEST_LINK_LIBRARIES})
+    # Use fixture to ensure tests are built
     add_test("build_${TEST}" "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target "test_${TEST}")
+    set_tests_properties("build_${TEST}" PROPERTIES FIXTURES_SETUP "fixture_${TEST}")
     add_test("test_${TEST}" "test_${TEST}")
-    set_tests_properties("test_${TEST}" PROPERTIES DEPENDS "build_${TEST}") # Ensure tests are built
+    set_tests_properties("test_${TEST}" PROPERTIES FIXTURES_REQUIRED "fixture_${TEST}")
 endforeach()
