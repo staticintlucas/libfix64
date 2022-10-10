@@ -94,6 +94,7 @@ static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
 
 static char *fmt_frac_16(char *buf, uint64_t repr, unsigned prec, int upper) {
     const unsigned bits_per_digit = 4; // 4 bits per hex digit
+    const unsigned digit_mask = (1 << bits_per_digit) - 1;
     const unsigned max_prec = FIX64_FRAC_BITS / bits_per_digit;
     prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
 
@@ -115,7 +116,7 @@ static char *fmt_frac_16(char *buf, uint64_t repr, unsigned prec, int upper) {
     buf += idigits;
     char *end = buf;
     do {
-        *(--buf) = digits[ipart & 0xF];
+        *(--buf) = digits[ipart & digit_mask];
         ipart >>= bits_per_digit;
     } while (ipart);
 
@@ -128,6 +129,74 @@ static char *fmt_frac_16(char *buf, uint64_t repr, unsigned prec, int upper) {
         prec--;
         fpart <<= bits_per_digit;
         *(end++) = digits[fpart >> FIX64_FRAC_BITS];
+        fpart &= ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+    }
+    return end;
+}
+
+static char *fmt_frac_8(char *buf, uint64_t repr, unsigned prec) {
+    const unsigned bits_per_digit = 3; // 3 bits per octal digit
+    const unsigned digit_mask = (1 << bits_per_digit) - 1;
+    const unsigned max_prec = (FIX64_FRAC_BITS + (bits_per_digit - 1)) / bits_per_digit;
+    prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
+
+    // This won't overflow since ipart only uses 31 bits since it comes from a signed int32_t
+    repr += FIX64_HALF.repr >> (prec * bits_per_digit);
+
+    uint32_t ipart = repr >> FIX64_FRAC_BITS;
+    uint64_t fpart = repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+
+    // Use (arg | 1) because "0" still needs 1 digit
+    unsigned idigits = ((32 - clz32(ipart | 1)) + (bits_per_digit - 1)) / bits_per_digit;
+    buf += idigits;
+    char *end = buf;
+    do {
+        *(--buf) = '0' + (ipart & digit_mask);
+        ipart >>= bits_per_digit;
+    } while (ipart);
+
+    if (FIX64_UNLIKELY(!prec)) {
+        return end;
+    }
+    *(end++) = '.';
+
+    while (prec) {
+        prec--;
+        fpart <<= bits_per_digit;
+        *(end++) = '0' + (fpart >> FIX64_FRAC_BITS);
+        fpart &= ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+    }
+    return end;
+}
+
+static char *fmt_frac_2(char *buf, uint64_t repr, unsigned prec) {
+    const unsigned max_prec = FIX64_FRAC_BITS;
+    prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
+
+    // This won't overflow since ipart only uses 31 bits since it comes from a signed int32_t
+    repr += FIX64_HALF.repr >> prec;
+
+    uint32_t ipart = repr >> FIX64_FRAC_BITS;
+    uint64_t fpart = repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
+
+    // Use (arg | 1) because "0" still needs 1 digit
+    unsigned idigits = 32 - clz32(ipart | 1);
+    buf += idigits;
+    char *end = buf;
+    do {
+        *(--buf) = '0' + (ipart & 1);
+        ipart >>= 1;
+    } while (ipart);
+
+    if (FIX64_UNLIKELY(!prec)) {
+        return end;
+    }
+    *(end++) = '.';
+
+    while (prec) {
+        prec--;
+        fpart <<= 1;
+        *(end++) = '0' + (fpart >> FIX64_FRAC_BITS);
         fpart &= ((UINT64_C(1) << FIX64_FRAC_BITS) - 1);
     }
     return end;
@@ -158,9 +227,10 @@ size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t f
         num_end = fmt_frac_10(num_buf, repr, prec);
     } else if (fmt.base == FIX64_BASE_HEXADECIMAL) {
         num_end = fmt_frac_16(num_buf, repr, prec, fmt.uppercase);
-    } else {
-        // TODO
-        num_end = num_buf;
+    } else if (fmt.base == FIX64_BASE_BINARY) {
+        num_end = fmt_frac_2(num_buf, repr, prec);
+    } else { // if (fmt.base == FIX64_BASE_OCTAL)
+        num_end = fmt_frac_8(num_buf, repr, prec);
     }
 
     // Only trim zeros if we actually have a fractional part
