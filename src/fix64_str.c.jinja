@@ -59,17 +59,15 @@ static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
     }
 
     unsigned idigits = digits(ipart);
-    buf += idigits;
-    char *end = buf;
-    while (ipart >= 10) {
-        buf -= 2;
+    char *end = buf + idigits;
+    while (idigits > 1) {
         const char *d = decimal_100(ipart % 100);
-        buf[0] = d[0];
-        buf[1] = d[1];
+        buf[--idigits] = d[1];
+        buf[--idigits] = d[0];
         ipart /= 100;
     }
-    if (ipart) {
-        *(--buf) = '0' + ipart;
+    if (idigits) {
+        buf[--idigits] = '0' + ipart;
     }
     if (FIX64_UNLIKELY(!prec)) {
         *end = '\0';

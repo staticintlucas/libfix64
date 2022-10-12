@@ -288,7 +288,7 @@ size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t f
 /// @param size the total size of the string buffer used for bounds checking
 /// @return the number of characters that would have been written without truncation
 static inline size_t fix64_to_str(char *buf, fix64_t val, size_t size) {
-    fix64_fmt_param_t fmt = { .decimals = -5 };
+    fix64_fmt_param_t fmt = { .decimals = 5 };
     return fix64_to_str_fmt(buf, val, size, fmt);
 }
 
@@ -307,7 +307,7 @@ static inline size_t fix64_to_str(char *buf, fix64_t val, size_t size) {
 /// @param size the total size of the string buffer used for bounds checking
 /// @return the number of characters that would have been written without truncation
 static inline size_t fix64_to_hex(char *buf, fix64_t val, size_t size) {
-    fix64_fmt_param_t fmt = { .decimals = -4, .base = FIX64_BASE_HEXADECIMAL };
+    fix64_fmt_param_t fmt = { .decimals = 4, .base = FIX64_BASE_HEXADECIMAL };
     return fix64_to_str_fmt(buf, val, size, fmt);
 }
 
