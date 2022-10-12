@@ -38,6 +38,6 @@ jobs:
     - name: Build & run tests
       run: |
         cd build
-        ctest --parallel 4
+        ctest --output-on-failure --parallel 4
       env:
         CC: ${{ matrix.c-compiler }}
