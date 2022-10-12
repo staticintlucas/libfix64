@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_compile_options(-Wall -Wextra -pedantic)
+add_compile_options(-Wall -Wextra -Wpedantic)
 
 enable_testing()
 if(POLICY CMP0094)
@@ -70,7 +70,7 @@ set_target_properties(fix64 PROPERTIES
 )
 
 set(TESTS
-    sanity consts literals
+    sanity consts literals str
     exp exp2 log log2 log10
     sin cos tan
 )
