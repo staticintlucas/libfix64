@@ -37,7 +37,6 @@ jobs:
         cmake --build build --parallel
     - name: Build & run tests
       run: |
-        cd build
-        ctest --output-on-failure --parallel 4
+        ctest --test-dir build/tests --output-on-failure --parallel 4
       env:
         CC: ${{ matrix.c-compiler }}
