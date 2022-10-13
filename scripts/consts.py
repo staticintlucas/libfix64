@@ -21,12 +21,9 @@ c_2_sqrtpi = 2 / _mp.sqrt(pi)
 sqrt2 = _mp.sqrt(2)
 sqrt1_2 = sqrt2 / 2
 
-def chebyshev_coefs(func, ival, n_coef):
+def chebyshev_coefs(func, n_coef):
 
     def impl():
-        scaling = lambda x: (x + _mp.one) / 2 * (_mpf(ival[1]) - _mpf(ival[0])) + _mpf(ival[0])
-        sfunc = lambda x: func(scaling(x))
-
         cheby_poly = [
             [1] + [0] * (n_coef - 1),
             [0, 1] + [0] * (n_coef - 2),
@@ -36,7 +33,7 @@ def chebyshev_coefs(func, ival, n_coef):
 
         xk = [_mp.cos(pi * (k + half) / n_coef) for k in range(n_coef)]
         an = [((two - int(n == 0)) / n_coef) *
-            sum(_mp.cos(n * pi * (k + half) / n_coef) * sfunc(xk[k]) for k in range(n_coef))
+            sum(_mp.cos(n * pi * (k + half) / n_coef) * func(xk[k]) for k in range(n_coef))
                 for n in range(len(cheby_poly))]
 
         coef = [_mp.zero] * n_coef
