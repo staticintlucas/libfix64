@@ -21,27 +21,29 @@ c_2_sqrtpi = 2 / _mp.sqrt(pi)
 sqrt2 = _mp.sqrt(2)
 sqrt1_2 = sqrt2 / 2
 
-def chebyshev_coefs(func, interval, n_coef):
-    interval = (_mpf(interval[0]), _mpf(interval[1]))
+def chebyshev_coefs(func, ival, n_coef):
 
-    scaling = lambda x: (x + _mp.one) / 2 * (interval[1] - interval[0]) + interval[0]
-    sfunc = lambda x: func(scaling(x))
+    def impl():
+        scaling = lambda x: (x + _mp.one) / 2 * (_mpf(ival[1]) - _mpf(ival[0])) + _mpf(ival[0])
+        sfunc = lambda x: func(scaling(x))
 
-    cheby_poly = [
-        [1] + [0] * (n_coef - 1),
-        [0, 1] + [0] * (n_coef - 2),
-    ]
-    for _ in range(len(cheby_poly), n_coef):
-        cheby_poly.append([2 * a - b for a, b in zip([0, *cheby_poly[-1]], cheby_poly[-2])])
+        cheby_poly = [
+            [1] + [0] * (n_coef - 1),
+            [0, 1] + [0] * (n_coef - 2),
+        ]
+        for _ in range(len(cheby_poly), n_coef):
+            cheby_poly.append([2 * a - b for a, b in zip([0, *cheby_poly[-1]], cheby_poly[-2])])
 
-    xk = [_mp.cos(pi * (k + half) / n_coef) for k in range(n_coef)]
-    an = [((two - int(n == 0)) / n_coef) *
-        sum(_mp.cos(n * pi * (k + half) / n_coef) * sfunc(xk[k]) for k in range(n_coef))
-            for n in range(len(cheby_poly))]
+        xk = [_mp.cos(pi * (k + half) / n_coef) for k in range(n_coef)]
+        an = [((two - int(n == 0)) / n_coef) *
+            sum(_mp.cos(n * pi * (k + half) / n_coef) * sfunc(xk[k]) for k in range(n_coef))
+                for n in range(len(cheby_poly))]
 
-    coef = [_mp.zero] * n_coef
-    for n in range(len(cheby_poly)):
-        for i in range(len(coef)):
-            coef[i] += an[n] * cheby_poly[n][i]
+        coef = [_mp.zero] * n_coef
+        for n in range(len(cheby_poly)):
+            for i in range(len(coef)):
+                coef[i] += an[n] * cheby_poly[n][i]
 
-    return coef
+        return coef
+
+    return impl

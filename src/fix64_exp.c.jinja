@@ -18,13 +18,14 @@
 
 // Calculates 2**x-1 for UQ0.64 fixed point numbers
 static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
-    static const uint64_t chebyshev_coefs[{{chebyshev_coefs["exp2m1"] | length}}] = {
-{% for coef in chebyshev_coefs["exp2m1"] %}
+{% set coefs = chebyshev_coefs["exp2m1"]() %}
+    static const uint64_t chebyshev_coefs[{{coefs | length}}] = {
+{% for coef in coefs %}
         {{const(coef, frac_bits=exp_frac_bits, digits=16)}},
 {% endfor %}
     };
 
-    uint64_t powers[{{chebyshev_coefs["exp2m1"] | length}}];
+    uint64_t powers[{{coefs | length}}];
     powers[0] = 0; // Should be 1.0 which overflows UQ0.64. But coefs[0] = 0 so it doesn't matter
     powers[1] = arg;
     for (size_t i = 2; i < sizeof(powers) / sizeof(powers[0]); i++) {

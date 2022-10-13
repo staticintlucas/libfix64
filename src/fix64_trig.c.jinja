@@ -19,13 +19,14 @@
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
     // Coefficients for the chebyshev series
-    static const int64_t chebyshev_coefs[{{chebyshev_coefs[func] | length}}] = {
-{% for coef in chebyshev_coefs[func] %}
+{% set coefs = chebyshev_coefs[func]() %}
+    static const int64_t chebyshev_coefs[{{coefs | length}}] = {
+{% for coef in coefs %}
         {{const(coef, frac_bits=cheby_frac_bits, digits=16)}},
 {% endfor %}
     };
 
-    int64_t val_pow[{{chebyshev_coefs[func] | length}}];
+    int64_t val_pow[{{coefs | length}}];
     val_pow[0] = INT64_C(1) << CHEBYSHEV_FRAC_BITS;
     for (size_t i = 1; i < sizeof(val_pow) / sizeof(val_pow[0]); i++) {
         val_pow[i] = ((int128_t)val_pow[i - 1] * value) >> CHEBYSHEV_FRAC_BITS;
