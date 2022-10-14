@@ -169,10 +169,7 @@ static inline {{type}} fix64_to_{{f.short}}(fix64_t value) {
 // converted to float and rounded towards zero. Unfortunately compilers don't have good support for
 // fesetround (GCC for example will reorder fesetround calls relative to float casts). Instead the
 // limits are calculated by zeroing the LSBs of the integral max so that has as many significant
-// bits as the floating point mantissa. This way the exact value is preserved when casting. The
-// min is currently just set as -max since calculating the actual minimum is more tricky. At worst
-// we're one interval off, but we can compensate for this by only comparing < min when saturating.
-// Values == min are converted as usual so if min is off-by-one the result won't be.
+// bits as the floating point mantissa. This way the exact value is preserved when casting.
 
 {% for type, f in floats.items() %}
 /// Converts a {{type}} to fix64_t
@@ -188,7 +185,8 @@ static inline fix64_t fix64_from_{{f.short}}({{type}} value) {
 #else
     static const {{type}} max = (INT64_MAX & ~((INT64_C(1) << {#
         #}(FIX64_BITS - {{f.short | upper}}_MANT_DIG)) - 1));
-    static const {{type}} min = -max;
+    static const {{type}} min = (INT64_MIN & ~((INT64_C(1) << {#
+        #}(FIX64_BITS - {{f.short | upper}}_MANT_DIG)) - 1));
 #endif
 {% if type == "long double" %}
     // Note: clang fails to optimise out call to exp2l, so we use a bit shift instead. A long
