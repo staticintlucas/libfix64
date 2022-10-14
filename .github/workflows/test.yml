@@ -3,40 +3,175 @@ name: Test
 on: [push, pull_request]
 
 jobs:
-  test:
-    name: Build and test
-    runs-on: Ubuntu-latest
+  test-python:
+    name: Test Python Compatibility
+    runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10']
-        c-compiler: ['clang', 'gcc']
-        cmake-version: ['3.13', 'latest']
+        python-version: ['3.7', '3.10'] # Testing every version in between seems a bit excessive
+
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
+
     - name: Setup Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+
+    - name: Check Python version
+      run: |
+        python --version
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1
+
     - name: Install Python requirements
       run: |
         pip install -U pip
         pip install -U -r requirements.txt
+
+    - name: Configure project
+      run: |
+        cmake -S. -Bbuild
+
+    - name: Build library
+      run: |
+        cmake --build build --parallel
+
+  test-cmake:
+    name: Test CMake Compatibility
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        cmake-version: ['3.12', 'latest'] # Testing every version in between seems a bit excessive
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
     - name: Setup CMake ${{ matrix.cmake-version }}
       uses: jwlawson/actions-setup-cmake@v1
       with:
         cmake-version: ${{ matrix.cmake-version }}
+
+    - name: Check CMake version
+      run: |
+        cmake --version
+
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+
+    - name: Configure project
+      if: ${{ matrix.cmake-version == '3.12' }} # 3.12 didn't support -S and -B yet
+      run: |
+        mkdir build && cd build
+        cmake ..
+    - name: Configure project
+      if: ${{ matrix.cmake-version != '3.12' }}
+      run: |
+        cmake -S. -Bbuild
+
+    - name: Build library
+      run: |
+        cmake --build build --parallel
+
+    - name: Build & run tests
+      run: |
+        ctest --test-dir build/tests --output-on-failure --parallel 4
+
+  test-gcc:
+    name: Test GCC compatibility
+    runs-on: ubuntu-20.04 # 20.04 has the biggest range of supported compilers
+
+    strategy:
+      fail-fast: false
+      matrix:
+        gcc-version: ['7', '11'] # Testing every version in between seems a bit excessive
+        # Also, 'latest' is actually the default version, not the real latest, so use 11 instead
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Setup GCC ${{ matrix.gcc-version }}
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: ${{ matrix.gcc-version }}
+
+    - name: Check GCC version
+      run: |
+        gcc --version
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1
+
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+
     - name: Configure project
       run: |
         cmake -S. -Bbuild -DCMAKE_WARNINGS_AS_ERRORS=1
       env:
-        CC: ${{ matrix.c-compiler }}
+        CC: gcc
+
     - name: Build library
       run: |
         cmake --build build --parallel
+
     - name: Build & run tests
       run: |
         ctest --test-dir build/tests --output-on-failure --parallel 4
+
+  test-clang:
+    name: Test Clang compatibility
+    runs-on: ubuntu-20.04 # 20.04 has the biggest range of supported compilers
+
+    strategy:
+      fail-fast: false
+      matrix:
+        clang-version: ['6', '13'] # Testing every version in between seems a bit excessive
+        # Also, 'latest' is actually the default version, not the real latest, so use 13 instead
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Setup Clang ${{ matrix.clang-version }}
+      uses: egor-tensin/setup-clang@v1
+      with:
+        version: ${{ matrix.clang-version }}
+
+    - name: Check Clang version
+      run: |
+        clang --version
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1
+
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+
+    - name: Configure project
+      run: |
+        cmake -S. -Bbuild -DCMAKE_WARNINGS_AS_ERRORS=1
       env:
-        CC: ${{ matrix.c-compiler }}
+        CC: clang
+
+    - name: Build library
+      run: |
+        cmake --build build --parallel
+
+    - name: Build & run tests
+      run: |
+        ctest --test-dir build/tests --output-on-failure --parallel 4
