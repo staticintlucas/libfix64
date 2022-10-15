@@ -68,9 +68,9 @@ extern "C" {
     static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
         uint64_t ures = (uint64_t)x + (uint64_t)y; // Avoid UB of signed overflow
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
-        *res = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
+        *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
         // TODO: this is not optimised well by anything
-        return ((y > 0) ? (*res < x) : (*res > x));
+        return ((y > 0) ? (*result < x) : (*result > x));
     }
 #endif
 
