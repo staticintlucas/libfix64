@@ -18,7 +18,9 @@ extern "C" {
     #define __has_builtin(_) 0
     #define FIX64_DEFINED_HAS_BUILTIN // Used to remember to undefine later
 #endif
-#if __has_builtin(__builtin_expect_with_probability)
+
+// GCC < 10 didn't have __has_builtin, so hard code the version
+#if __has_builtin(__builtin_expect_with_probability) || (defined(__GNUC__) && __GNUC__ >= 9)
     // Use __builtin_expect_with_probability if available with a probability of 0.9. GCC already
     // uses 0.9 by default for __builtin_expect, but Clang uses 1.0. This makes Clang perform
     // optimisations such as replacing cmov with branches which make the expected case marginally
@@ -26,7 +28,7 @@ extern "C" {
     // use 0.9 probability which will reorder branches, etc, but otherwise won't go overboard.
     #define FIX64_LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
     #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
-#elif __has_builtin(__builtin_expect)
+#elif __has_builtin(__builtin_expect) || (defined(__GNUC__) && __GNUC__ >= 3)
     #define FIX64_LIKELY(cond) __builtin_expect((cond), 1)
     #define FIX64_UNLIKELY(cond) __builtin_expect((cond), 0)
 #else
@@ -53,7 +55,8 @@ extern "C" {
     #error "Unsupported compiler/architecture; no 128-bit integer type defined"
 #endif
 
-#if __has_builtin(__builtin_add_overflow)
+// GCC < 10 didn't have __has_builtin, so hard code the version
+#if __has_builtin(__builtin_add_overflow) || (defined(__GNUC__) && __GNUC__ >= 5)
     static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
         return __builtin_add_overflow(x, y, result);
     }
