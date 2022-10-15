@@ -46,10 +46,73 @@ extern "C" {
 
 // Avoids warnings
 #ifdef __SIZEOF_INT128__
-    __extension__ typedef __int128 int128_t;
-    __extension__ typedef unsigned __int128 uint128_t;
+    __extension__ typedef __int128 fix64_int128_t;
+    __extension__ typedef unsigned __int128 fix64_uint128_t;
+    #define FIX64_HAVE_INT128
 #else
     #error "Unsupported compiler/architecture; no 128-bit integer type defined"
+#endif
+
+#if __has_builtin(__builtin_add_overflow)
+    static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
+        return __builtin_add_overflow(x, y, result);
+    }
+    static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
+        return __builtin_add_overflow(x, y, result);
+    }
+#else
+    static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
+        *result = x + y;
+        return *result < x;
+    }
+    static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
+        uint64_t ures = (uint64_t)x + (uint64_t)y; // Avoid UB of signed overflow
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        *res = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
+        // TODO: this is not optimised well by anything
+        return ((y > 0) ? (*res < x) : (*res > x));
+    }
+#endif
+
+#ifdef FIX64_HAVE_INT128
+    static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
+        fix64_uint128_t res = (fix64_uint128_t)x * y;
+        *hi = res >> 64;
+        return res;
+    }
+    static inline int64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
+        fix64_int128_t res = (fix64_int128_t)x * y;
+        *hi = res >> 64;
+        return res;
+    }
+#else
+    static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
+        uint64_t x_hi = x >> 32;
+        uint64_t x_lo = (uint32_t)x;
+        uint64_t y_hi = y >> 32;
+        uint64_t y_lo = (uint32_t)y;
+
+        uint64_t xy_hi = x_hi * y_hi;
+        uint64_t xy_md = x_hi * y_lo;
+        uint64_t yx_md = y_hi * x_lo;
+        uint64_t xy_lo = x_lo * y_lo;
+
+        uint64_t lo;
+        int carry0 = fix64_impl_add_u64_overflow(xy_md << 32, yx_md << 32, &lo);
+        int carry1 = fix64_impl_add_u64_overflow(lo, xy_lo, &lo);
+        *hi = xy_hi + (xy_md >> 32) + (yx_md >> 32) + carry0 + carry1;
+
+        return lo;
+    }
+    static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
+        uint64_t uhi = (uint64_t)*hi;
+        uint64_t lo = fix64_impl_mul_u64_u128((uint64_t)x, (uint64_t)y, &uhi);
+        uhi -= (x < 0) ? y : 0;
+        uhi -= (y < 0) ? x : 0;
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
+        return lo;
+    }
 #endif
 
 //==========================================================
@@ -146,16 +209,19 @@ static inline {{type}} fix64_to_{{i.short}}(fix64_t value) {
 /// @param value the {{type}} value to convert
 /// @return converted fix64_t value
 static inline fix64_t fix64_from_{{i.short}}({{type}} value) {
-    int128_t result = ((int128_t)value << FIX64_FRAC_BITS);
-    if (result > INT64_MAX) {
-        result = INT64_MAX;
+    fix64_t result;
+    if (value > (FIX64_MAX.repr >> FIX64_FRAC_BITS)) {
+        result = FIX64_MAX;
     }
 {%- if i.signed %} {# -#}
-    else if (result < INT64_MIN) {
-        result = INT64_MIN;
+    else if (value < (FIX64_MIN.repr >> FIX64_FRAC_BITS)) {
+        result = FIX64_MIN;
     }
 {%- endif +%}
-    return (fix64_t){(int64_t)result};
+    else {
+        result = (fix64_t){ (int64_t)value << FIX64_FRAC_BITS };
+    }
+    return result;
 }
 
 {% endfor -%}
@@ -445,12 +511,11 @@ static inline fix64_t fix64_sub_sat(fix64_t lhs, fix64_t rhs) {
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
 static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
-    // TODO don't rely on int128_t?
-    int128_t result = ((int128_t)lhs.repr * rhs.repr);
-    // add one to the bit below the LSB of the final result for rounding
-    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1));
-    result >>= FIX64_FRAC_BITS;
-    return (fix64_t){(int64_t)result};
+    int64_t hi;
+    uint64_t lo = fix64_impl_mul_i64_i128(lhs.repr, rhs.repr, &hi);
+    hi += fix64_impl_add_u64_overflow(lo, (INT64_C(1) << (FIX64_FRAC_BITS - 1)), &lo); // For rounding
+    int64_t result = (hi << (64 - FIX64_FRAC_BITS)) | (lo >> FIX64_FRAC_BITS);
+    return (fix64_t){ result };
 }
 
 /// Saturating multiplication of two fix64_t numbers
@@ -459,17 +524,16 @@ static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
 /// @param rhs right hand side for the multiplication
 /// @return the product of the two inputs
 static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
-    // TODO don't rely on int128_t?
-    int128_t result = ((int128_t)lhs.repr * rhs.repr);
-    // add one to the bit below the LSB of the final result for rounding
-    result += (INT64_C(1) << (FIX64_FRAC_BITS - 1));
-    result >>= FIX64_FRAC_BITS;
-    if (FIX64_UNLIKELY(result > (int128_t)INT64_MAX)) {
-        result = INT64_MAX;
-    } else if (FIX64_UNLIKELY(result < (int128_t)INT64_MIN)) {
-        result = INT64_MIN;
+    int64_t hi;
+    uint64_t lo = fix64_impl_mul_i64_i128(lhs.repr, rhs.repr, &hi);
+    hi += fix64_impl_add_u64_overflow(lo, (INT64_C(1) << (FIX64_FRAC_BITS - 1)), &lo); // For rounding
+    int64_t result = (hi << (64 - FIX64_FRAC_BITS)) | (lo >> FIX64_FRAC_BITS);
+    if (FIX64_UNLIKELY(hi > (FIX64_MAX.repr >> FIX64_FRAC_BITS))) {
+        result = FIX64_MAX.repr;
+    } else if (FIX64_UNLIKELY(hi < (FIX64_MIN.repr >> FIX64_FRAC_BITS))) {
+        result = FIX64_MIN.repr;
     }
-    return (fix64_t){(int64_t)result};
+    return (fix64_t){ result };
 }
 
 /// Division of two fix64_t numbers. Result is rounded to the nearest representable value
@@ -478,14 +542,14 @@ static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
 static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
-    // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << FIX64_FRAC_BITS);
+    // TODO don't rely on fix64_int128_t?
+    fix64_int128_t dividend = ((fix64_int128_t)lhs.repr << FIX64_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
-    int128_t result = dividend / rhs.repr;
+    fix64_int128_t result = dividend / rhs.repr;
     return (fix64_t){(int64_t)result};
 }
 
@@ -500,17 +564,17 @@ static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
         return (lhs.repr > 0) ? FIX64_MAX : FIX64_MIN;
     }
 
-    // TODO don't rely on int128_t?
-    int128_t dividend = ((int128_t)lhs.repr << FIX64_FRAC_BITS);
+    // TODO don't rely on fix64_int128_t?
+    fix64_int128_t dividend = ((fix64_int128_t)lhs.repr << FIX64_FRAC_BITS);
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
     } else {
         dividend -= rhs.repr / 2; // else subtract for rounding
     }
-    int128_t result = dividend / rhs.repr;
-    if (FIX64_UNLIKELY(result > (int128_t)INT64_MAX)) {
+    fix64_int128_t result = dividend / rhs.repr;
+    if (FIX64_UNLIKELY(result > (fix64_int128_t)INT64_MAX)) {
         result = INT64_MAX;
-    } else if (FIX64_UNLIKELY(result < (int128_t)INT64_MIN)) {
+    } else if (FIX64_UNLIKELY(result < (fix64_int128_t)INT64_MIN)) {
         result = INT64_MIN;
     }
     return (fix64_t){(int64_t)result};

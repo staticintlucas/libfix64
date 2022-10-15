@@ -29,12 +29,12 @@ static int64_t chebyshev_{{func}}_impl(int64_t value) {
     int64_t val_pow[{{coefs | length}}];
     val_pow[0] = INT64_C(1) << CHEBYSHEV_FRAC_BITS;
     for (size_t i = 1; i < sizeof(val_pow) / sizeof(val_pow[0]); i++) {
-        val_pow[i] = ((int128_t)val_pow[i - 1] * value) >> CHEBYSHEV_FRAC_BITS;
+        val_pow[i] = ((fix64_int128_t)val_pow[i - 1] * value) >> CHEBYSHEV_FRAC_BITS;
     }
 
     int64_t sum = 0;
     for (size_t i = 0; i < sizeof(chebyshev_coefs) / sizeof(chebyshev_coefs[0]); i++) {
-        sum += ((int128_t)val_pow[i] * chebyshev_coefs[i]) >> CHEBYSHEV_FRAC_BITS;
+        sum += ((fix64_int128_t)val_pow[i] * chebyshev_coefs[i]) >> CHEBYSHEV_FRAC_BITS;
     }
 
     return sum; // Q1.62
@@ -44,17 +44,17 @@ static int64_t chebyshev_{{func}}_impl(int64_t value) {
 
 fix64_t fix64_sin(fix64_t angle) {
     // Normalise so that 1.0 = pi/2 = 90deg
-    int128_t a = (int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
+    fix64_int128_t a = (fix64_int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
 
     // Calculate octant, used to determine which chebyshev function to call
     unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS - 1)) & 0x7;
     // Modulo pi/2 (90deg)
-    a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // UQ0.94
+    a &= ((fix64_int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // UQ0.94
 
     // Normalise -pi/4..pi/4 (90deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
     int64_t norm_a = (a >> (FIX64_FRAC_BITS - 1)); // UQ2.62
     norm_a = (((norm_a + (1ul << CHEBYSHEV_FRAC_BITS)) &
-        (((int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
+        (((fix64_int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
 
     int64_t result = 0;
     switch (octant) {
@@ -85,17 +85,17 @@ fix64_t fix64_sin(fix64_t angle) {
 
 fix64_t fix64_cos(fix64_t angle) {
     // Normalise so that 1.0 = pi/2 = 90deg
-    int128_t a = (int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
+    fix64_int128_t a = (fix64_int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
 
     // Calculate octant, used to determine which chebyshev function to call
     unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS - 1)) & 0x7;
     // Modulo pi/2 (90deg)
-    a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // Q0.94
+    a &= ((fix64_int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // Q0.94
 
     // Normalise -pi/4..pi/4 (90deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
     int64_t norm_a = (a >> (FIX64_FRAC_BITS - 1)); // UQ2.62
     norm_a = (((norm_a + (1ul << CHEBYSHEV_FRAC_BITS)) &
-        (((int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
+        (((fix64_int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
 
     int64_t result = 0;
     switch (octant) {
@@ -126,19 +126,19 @@ fix64_t fix64_cos(fix64_t angle) {
 
 fix64_t fix64_tan(fix64_t angle) {
     // Normalise so that 1.0 = pi/2 = 90deg
-    int128_t a = (int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
+    fix64_int128_t a = (fix64_int128_t)angle.repr * CHEBYSHEV_2_PI; // Q31.94
 
     // Calculate octant, used to determine which chebyshev function to call
     unsigned octant = (a >> (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS - 1)) & 0x7;
     // Modulo pi/2 (90deg)
-    a &= ((int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // UQ0.94
+    a &= ((fix64_int128_t)1 << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS)) - 1; // UQ0.94
 
     // Normalise -pi/4..pi/4 (90deg) to range -1..1 with CHEBYSHEV_FRAC_BITS fractional bits
     int64_t norm_a = (a >> (FIX64_FRAC_BITS - 1)); // UQ2.62
     norm_a = (((norm_a + (1ul << CHEBYSHEV_FRAC_BITS)) &
-        (((int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
+        (((fix64_int128_t)2ul << CHEBYSHEV_FRAC_BITS) - 1)) - (1ul << CHEBYSHEV_FRAC_BITS)); // Q1.62
 
-    int128_t result = 0;
+    fix64_int128_t result = 0;
     switch (octant) {
         case 7:
         case 0:
@@ -154,7 +154,7 @@ fix64_t fix64_tan(fix64_t angle) {
             if (!result) {
                 return FIX64_MAX;
             }
-            result = ((int128_t)1 << (2 * CHEBYSHEV_FRAC_BITS)) / result;
+            result = ((fix64_int128_t)1 << (2 * CHEBYSHEV_FRAC_BITS)) / result;
             break;
     }
 

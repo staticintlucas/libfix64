@@ -77,14 +77,14 @@ static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
 
     while (prec >= 2) {
         prec -= 2;
-        uint128_t tmp = (uint128_t)fpart * 100;
+        fix64_uint128_t tmp = (fix64_uint128_t)fpart * 100;
         const char *d = decimal_100(tmp >> 64);
         *(end++) = *(d++);
         *(end++) = *d;
         fpart = (uint64_t)tmp;
     }
     if (prec) {
-        uint128_t tmp = (uint128_t)fpart * 10;
+        fix64_uint128_t tmp = (fix64_uint128_t)fpart * 10;
         *(end++) = '0' + (tmp >> 64);
     }
     return end;

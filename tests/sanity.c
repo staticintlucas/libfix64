@@ -6,18 +6,18 @@
 #include "common.h"
 
 int main() {
-    if (sizeof(int128_t) != 16) {
-        printf("sizeof(int128_t) = %zu, expected 16\n", sizeof(int128_t));
-        return 1;
-    }
-
-    if (sizeof(uint128_t) != 16) {
-        printf("sizeof(uint128_t) = %zu, expected 16\n", sizeof(uint128_t));
-        return 1;
-    }
-
     if (FLT_RADIX != 2) {
         printf("FLT_RADIX = %u, expected 2\n", FLT_RADIX);
+        return 1;
+    }
+
+    if ((-1 & 3) != 3) {
+        printf("(-1 & 3) = %d, expected 3\n", (-1 & 3));
+        return 1;
+    }
+
+    if ((-1 >> 1) != -1) {
+        printf("(-1 >> 1) = %d, expected -1\n", (-1 & 3));
         return 1;
     }
 
