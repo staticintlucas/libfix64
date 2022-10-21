@@ -1,6 +1,7 @@
 # Source files
 set(SOURCES
     "fix64_inline.h"
+    "fix64_fallback.c"
 )
 list(TRANSFORM SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 

@@ -51,8 +51,6 @@ extern "C" {
     __extension__ typedef __int128 fix64_int128_t;
     __extension__ typedef unsigned __int128 fix64_uint128_t;
     #define FIX64_HAVE_INT128
-#else
-    #error "Unsupported compiler/architecture; no 128-bit integer type defined"
 #endif
 
 // GCC < 10 didn't have __has_builtin, so hard code the version
@@ -62,6 +60,12 @@ extern "C" {
     }
     static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
         return __builtin_add_overflow(x, y, result);
+    }
+    static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
+        return __builtin_sub_overflow(x, y, result);
+    }
+    static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *result) {
+        return __builtin_sub_overflow(x, y, result);
     }
 #else
     static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
@@ -75,6 +79,17 @@ extern "C" {
         // TODO: this is not optimised well by anything
         return ((y > 0) ? (*result < x) : (*result > x));
     }
+    static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
+        *result = x - y;
+        return *result > x;
+    }
+    static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *result) {
+        uint64_t ures = (uint64_t)x - (uint64_t)y; // Avoid UB of signed overflow
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
+        // TODO: this is not optimised well by anything
+        return ((y > 0) ? (*result > x) : (*result < x));
+    }
 #endif
 
 #ifdef FIX64_HAVE_INT128
@@ -83,7 +98,7 @@ extern "C" {
         *hi = res >> 64;
         return res;
     }
-    static inline int64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
+    static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
         fix64_int128_t res = (fix64_int128_t)x * y;
         *hi = res >> 64;
         return res;
@@ -116,6 +131,93 @@ extern "C" {
         *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
         return lo;
     }
+#endif
+
+// Don't try to implement division with fix64_int128_t, it is at best as fast as our C/ASM combo
+// implementation, but can be slower
+#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER))
+    static inline
+    uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
+        if (FIX64_UNLIKELY(u_hi >= v)) {
+            *r = UINT64_MAX;
+            return UINT64_MAX;
+        }
+
+        uint64_t q;
+        __asm__ (
+            "divq\t%[v]"
+            : "=a"(q), "=d"(*r) // quotient ends up in rax, remainder in rdx
+            : [v]"r"(v), "d"(u_hi), "a"(u_lo) // dividend goes in rdx:rax
+            : "flags" // divq leaves flags in an undefined state
+        );
+        return q;
+    }
+
+    static inline
+    int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r) {
+        // unsigned variables
+        uint64_t uu_hi = u_hi;
+        uint64_t uu_lo = u_lo;
+        uint64_t uv = v;
+
+        // u_sign = -(u < 0)
+        uint64_t u_sign = u_hi >> 63;
+
+        // uu_hi:uu_lo = abs(u_hi:u_lo)
+        int overflow = fix64_impl_add_u64_overflow(uu_lo, u_sign, &uu_lo);
+        uu_hi += u_sign + overflow;
+        uu_lo ^= u_sign;
+        uu_hi ^= u_sign;
+
+        uint64_t v_sign = v >> 63; // = -(v < 0)
+        uv = (v_sign) ? -uv : uv; // = labs(v);
+
+        uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
+
+        // handle INT64_MIN as a special case, if u_hi == INT64_MIN (i.e. MSB is set) division will
+        // always overflow
+        if (FIX64_UNLIKELY(uu_hi >> 63)) {
+            *r = (q_sign) ? INT64_MIN : INT64_MAX;
+            return (q_sign) ? INT64_MIN : INT64_MAX;
+        }
+
+        uint64_t uu_lsh63 = (uu_hi << 1) | (uu_lo >> 63);
+
+        // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
+        if (!FIX64_UNLIKELY(uv >> 63)) {
+            if (q_sign) {
+                // u, v both positive => q positive
+                // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
+                // or u, v both negative => q positive
+                // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
+                if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
+                    *r = INT64_MAX;
+                    return INT64_MAX;
+                }
+            } else {
+                // u positive, v negative => q negative
+                // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
+                // or u negative, v positive => q negative
+                // u_min = -0x8000_0000 * v - (v - 1) => uu < 0x8000_0001 * uv
+                if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
+                    *r = INT64_MIN;
+                    return INT64_MIN;
+                }
+            }
+        }
+
+        uint64_t q;
+        __asm__ (
+            "idivq\t%[v]"
+            : "=a"(q), "=d"(*r) // quotient ends up in rax, remainder in rdx
+            : [v]"r"(v), "d"(u_hi), "a"(u_lo) // dividend goes in rdx:rax
+            : "flags" // divq leaves flags in an undefined state
+        );
+        return q;
+    }
+#else
+    uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r);
+    int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r);
 #endif
 
 //==========================================================
@@ -545,14 +647,23 @@ static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
 static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
-    // TODO don't rely on fix64_int128_t?
-    fix64_int128_t dividend = ((fix64_int128_t)lhs.repr << FIX64_FRAC_BITS);
+    int64_t hi = lhs.repr >> (64 - FIX64_FRAC_BITS);
+    uint64_t lo = (uint64_t)lhs.repr << FIX64_FRAC_BITS;
+
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
-        dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
+        // if signs are same -> result is positive -> add for rounding
+        hi += fix64_impl_add_u64_overflow(lo, rhs.repr / 2, &lo);
     } else {
-        dividend -= rhs.repr / 2; // else subtract for rounding
+        // else subtract for rounding
+        hi -= fix64_impl_sub_u64_underflow(lo, rhs.repr / 2, &lo);
     }
-    fix64_int128_t result = dividend / rhs.repr;
+
+    // fix64_impl_div_i128_i64 already saturates for us
+    // TODO do we manually implement wrapping logic? What advantage does the non-saturating function
+    // have if it has to implement extra logic to not saturate?
+    int64_t rem;
+    int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
+
     return (fix64_t){(int64_t)result};
 }
 
@@ -563,23 +674,21 @@ static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
 /// @param rhs divisor side for the division
 /// @return the quotient of the two inputs
 static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
-    if (FIX64_UNLIKELY(rhs.repr == 0)) {
-        return (lhs.repr > 0) ? FIX64_MAX : FIX64_MIN;
+    int64_t hi = lhs.repr >> (64 - FIX64_FRAC_BITS);
+    uint64_t lo = (uint64_t)lhs.repr << FIX64_FRAC_BITS;
+
+    if ((rhs.repr < 0) == (lhs.repr < 0)) {
+        // if signs are same -> result is positive -> add for rounding
+        hi += fix64_impl_add_u64_overflow(lo, rhs.repr / 2, &lo);
+    } else {
+        // else subtract for rounding
+        hi -= fix64_impl_sub_u64_underflow(lo, rhs.repr / 2, &lo);
     }
 
-    // TODO don't rely on fix64_int128_t?
-    fix64_int128_t dividend = ((fix64_int128_t)lhs.repr << FIX64_FRAC_BITS);
-    if ((rhs.repr < 0) == (lhs.repr < 0)) {
-        dividend += rhs.repr / 2; // if signs are same -> result is positive -> add for rounding
-    } else {
-        dividend -= rhs.repr / 2; // else subtract for rounding
-    }
-    fix64_int128_t result = dividend / rhs.repr;
-    if (FIX64_UNLIKELY(result > (fix64_int128_t)INT64_MAX)) {
-        result = INT64_MAX;
-    } else if (FIX64_UNLIKELY(result < (fix64_int128_t)INT64_MIN)) {
-        result = INT64_MIN;
-    }
+    // fix64_impl_div_i128_i64 already saturates for us
+    int64_t rem;
+    int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
+
     return (fix64_t){(int64_t)result};
 }
 
