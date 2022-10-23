@@ -10,6 +10,7 @@
 #include "fix64_inline.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 
 // Number fractional bits
@@ -29,12 +30,16 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
     powers[0] = 0; // Should be 1.0 which overflows UQ0.64. But coefs[0] = 0 so it doesn't matter
     powers[1] = arg;
     for (size_t i = 2; i < sizeof(powers) / sizeof(powers[0]); i++) {
-        powers[i] = ((fix64_uint128_t)powers[i - 1] * arg) >> EXP_FRAC_BITS;
+        // Note: assumes EXP_FRAC_BITS == 64
+        fix64_impl_mul_u64_u128(powers[i - 1], arg, &powers[i]);
     }
 
     uint64_t sum = 0; // UQ0.64
     for (size_t i = 0; i < sizeof(chebyshev_coefs) / sizeof(chebyshev_coefs[0]); i++) {
-        sum += ((fix64_uint128_t)powers[i] * chebyshev_coefs[i]) >> EXP_FRAC_BITS;
+        uint64_t hi;
+        // Note: assumes EXP_FRAC_BITS == 64
+        fix64_impl_mul_u64_u128(powers[i], chebyshev_coefs[i], &hi);
+        sum += hi;
     }
 
     return sum;
@@ -45,16 +50,21 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
 static uint64_t turner_log21p_impl(uint64_t arg) {
     uint64_t result = 0;
     for (size_t i = 0; i < (FIX64_FRAC_BITS + 1); i++) {
-        // (1+x)**2 - 1 == 2*x + x**2
-        fix64_uint128_t arg128 = ((fix64_uint128_t)arg << 1) + (((fix64_uint128_t)arg * arg) >> 64); // UQ64.64
+        // (1+x)**2 - 1 == 2*x + x**2 == (x << 1) + (x * x)
+        // Note: arg_shr64 assumes EXP_FRAC_BITS == 64
+        uint64_t arg_shr64;
+        fix64_impl_mul_u64_u128(arg, arg, &arg_shr64);
+        uint64_t arg_hi;
+        uint64_t arg_lo = fix64_impl_add_u128(arg >> 63, arg << 1, 0, arg_shr64, &arg_hi); // UQ64.64
 
         result <<= 1;
-        if (arg128 >> EXP_FRAC_BITS) { // i.e. if (arg128 >= 1.0)
+        if (arg_hi) { // i.e. if (arg_hi:arg_lo >= 1.0) // Note: assumes EXP_FRAC_BITS == 64
             // arg+1 = (arg+1)/2 => arg = (arg-1)/2
-            arg = (uint64_t)((arg128 - ((fix64_uint128_t)1 << EXP_FRAC_BITS)) >> 1);
+            // Note: assumes EXP_FRAC_BITS == 64
+            arg = ((arg_hi - 1) << 63) | (arg_lo >> 1);
             result |= 1;
         } else {
-            arg = (uint64_t)arg128;
+            arg = arg_lo;
         }
     }
     return result << (EXP_FRAC_BITS - (FIX64_FRAC_BITS + 1));
@@ -67,24 +77,38 @@ static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
         return FIX64_ZERO;
     }
 
-    fix64_uint128_t result = ((fix64_uint128_t)1 << EXP_FRAC_BITS) | chebyshev_exp2m1_impl(fpart); // UQ1.64
+    // Note: assumes EXP_FRAC_BITS == 64
+    uint64_t hi = 1;
+    uint64_t lo = chebyshev_exp2m1_impl(fpart); // UQ1.64
 
-    result += ((fix64_uint128_t)1 << (EXP_FRAC_BITS - FIX64_FRAC_BITS - 1 - ipart)); // rounding
-    result >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS - ipart); // UQ31.32
+    uint64_t round_hi = 0, round_lo = 0;
+    uint32_t round_shift = EXP_FRAC_BITS - FIX64_FRAC_BITS - ipart;
+    if ((round_shift - 1) >= 64) {
+        round_hi = 1ull << ((round_shift - 1) - 64);
+    } else {
+        round_lo = 1ull << (round_shift - 1);
+    }
+    lo = fix64_impl_add_u128(hi, lo, round_hi, round_lo, &hi);
 
-    return (fix64_t){ result };
+    if (round_shift >= 64) {
+        return (fix64_t){ hi >> (round_shift - 64) };
+    } else {
+        return (fix64_t){ (hi << (64 - round_shift)) | (lo >> round_shift) };
+    }
 }
 
 fix64_t fix64_exp(fix64_t arg) {
-    fix64_int128_t arg_log2e = (fix64_int128_t)arg.repr * {#
-        #}{{uconst(consts.log2e.val, frac_bits=mul_frac_bits)}}; // Q32.95
-    arg_log2e += (fix64_int128_t)1 << (FIX64_FRAC_BITS + MUL_FRAC_BITS - 1 - EXP_FRAC_BITS); // rounding
-    arg_log2e >>= FIX64_FRAC_BITS + MUL_FRAC_BITS - EXP_FRAC_BITS; // Q32.64
+    int64_t arg_log2e_hi;
+    uint64_t arg_log2e_lo = fix64_impl_mul_i64_u64_i128(arg.repr, {#
+        #}{{uconst(consts.log2e.val, frac_bits=mul_frac_bits)}}, &arg_log2e_hi); // Q32.95
 
-    int64_t ipart = (arg_log2e >> EXP_FRAC_BITS);
-    uint64_t fpart = arg_log2e & (((fix64_int128_t)1 << EXP_FRAC_BITS) - 1);
+    uint32_t round_shift = FIX64_FRAC_BITS + MUL_FRAC_BITS - EXP_FRAC_BITS;
+    arg_log2e_lo = fix64_impl_add_i128(arg_log2e_hi, arg_log2e_lo, 0, 1ull << (round_shift - 1), &arg_log2e_hi); // rounding
+    arg_log2e_lo = (arg_log2e_hi << (64 - round_shift)) | (arg_log2e_lo >> round_shift);
+    arg_log2e_hi >>= round_shift; // Q32.64
 
-    return fix64_exp2_inner(ipart, fpart);
+    // Note: assumes EXP_FRAC_BITS == 64
+    return fix64_exp2_inner(arg_log2e_hi, arg_log2e_lo);
 }
 
 fix64_t fix64_exp2(fix64_t arg) {
@@ -99,24 +123,26 @@ fix64_t fix64_log(fix64_t arg) {
     int64_t log2 = fix64_log2(arg).repr; // Q31.32
 
     // ln(x) = log2(x) / log2(e) = log2(x) * (1/log2(e))
-    fix64_int128_t result = (fix64_int128_t)log2 * {#
-        #}{{uconst(1 / consts.log2e.val, frac_bits=exp_frac_bits)}}; // Q31.96
-    result += (fix64_int128_t)1 << (EXP_FRAC_BITS - 1); // rounding
-    result >>= EXP_FRAC_BITS; // Q31.32
+    int64_t result_hi;
+    uint64_t result_lo = fix64_impl_mul_i64_u64_i128(log2, {#
+        #}{{uconst(1 / consts.log2e.val, frac_bits=exp_frac_bits)}}, &result_hi); // Q31.96
+    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
 
-    return (fix64_t){ result };
+    // Note: assumes EXP_FRAC_BITS == 64
+    return (fix64_t){ result_hi };
 }
 
 fix64_t fix64_log10(fix64_t arg) {
     int64_t log2 = fix64_log2(arg).repr; // Q31.32
 
     // log10(x) = log2(x) / log2(10) = log2(x) * (1 / log2(10)) {#- = log2(x) * (ln(2) / ln(10)) +#}
-    fix64_int128_t result = (fix64_int128_t)log2 * {#
-        #}{{uconst(consts.ln2.val / consts.ln10.val, frac_bits=exp_frac_bits)}}; // Q31.96
-    result += (fix64_int128_t)1 << (EXP_FRAC_BITS - 1); // rounding
-    result >>= EXP_FRAC_BITS; // Q31.32
+    int64_t result_hi;
+    uint64_t result_lo = fix64_impl_mul_i64_u64_i128(log2, {#
+        #}{{uconst(consts.ln2.val / consts.ln10.val, frac_bits=exp_frac_bits)}}, &result_hi); // Q31.96
+    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
 
-    return (fix64_t){ result };
+    // Note: assumes EXP_FRAC_BITS == 64
+    return (fix64_t){ result_hi };
 }
 
 fix64_t fix64_log2(fix64_t arg) {
@@ -126,10 +152,13 @@ fix64_t fix64_log2(fix64_t arg) {
 
     int64_t lz = clz64(arg.repr); // Q31.0
     uint64_t fpart = arg.repr << (lz + 1); // Q0.64
-    fix64_int128_t result = ((fix64_int128_t)(FIX64_INT_BITS - lz) << EXP_FRAC_BITS) +
-        turner_log21p_impl(fpart); // Q31.64
-    result += (fix64_int128_t)1 << (EXP_FRAC_BITS - FIX64_FRAC_BITS - 1); // rounding
-    result >>= (EXP_FRAC_BITS - FIX64_FRAC_BITS); // Q31.32
 
-    return (fix64_t){ result };
+    // Note: assumes EXP_FRAC_BITS == 64
+    int64_t result_hi = FIX64_INT_BITS - lz;
+    uint64_t result_lo = turner_log21p_impl(fpart); // Q31.64#
+
+    uint32_t round_shift = EXP_FRAC_BITS - FIX64_FRAC_BITS;
+    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (round_shift - 1), &result_hi); // rounding
+
+    return (fix64_t){ (result_hi << (64 - round_shift)) | (result_lo >> round_shift) };
 }

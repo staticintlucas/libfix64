@@ -46,13 +46,6 @@ extern "C" {
     #error "Platforms not using arithmetic shifts for signed integers are currently not supported!"
 #endif
 
-// Avoids warnings
-#ifdef __SIZEOF_INT128__
-    __extension__ typedef __int128 fix64_int128_t;
-    __extension__ typedef unsigned __int128 fix64_uint128_t;
-    #define FIX64_HAVE_INT128
-#endif
-
 // GCC < 10 didn't have __has_builtin, so hard code the version
 #if __has_builtin(__builtin_add_overflow) || (defined(__GNUC__) && __GNUC__ >= 5)
     static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
@@ -92,7 +85,38 @@ extern "C" {
     }
 #endif
 
+// Avoids warnings
+#ifdef __SIZEOF_INT128__
+    __extension__ typedef __int128 fix64_int128_t;
+    __extension__ typedef unsigned __int128 fix64_uint128_t;
+    #define FIX64_HAVE_INT128
+#endif
+
 #ifdef FIX64_HAVE_INT128
+    static inline uint64_t fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
+        fix64_uint128_t res =
+            (((fix64_uint128_t)x_hi << 64) | x_lo) + (((fix64_uint128_t)y_hi << 64) | y_lo);
+        *hi = res >> 64;
+        return res;
+    }
+    static inline uint64_t fix64_impl_add_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
+        fix64_int128_t res =
+            (((fix64_int128_t)x_hi << 64) | x_lo) + (((fix64_int128_t)y_hi << 64) | y_lo);
+        *hi = res >> 64;
+        return res;
+    }
+    static inline uint64_t fix64_impl_sub_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
+        fix64_uint128_t res =
+            (((fix64_uint128_t)x_hi << 64) | x_lo) - (((fix64_uint128_t)y_hi << 64) | y_lo);
+        *hi = res >> 64;
+        return res;
+    }
+    static inline uint64_t fix64_impl_sub_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
+        fix64_int128_t res =
+            (((fix64_int128_t)x_hi << 64) | x_lo) - (((fix64_int128_t)y_hi << 64) | y_lo);
+        *hi = res >> 64;
+        return res;
+    }
     static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
         fix64_uint128_t res = (fix64_uint128_t)x * y;
         *hi = res >> 64;
@@ -103,7 +127,36 @@ extern "C" {
         *hi = res >> 64;
         return res;
     }
+    static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
+        fix64_int128_t res = (fix64_int128_t)x * y;
+        *hi = res >> 64;
+        return res;
+    }
 #else
+    static inline uint64_t fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
+        uint64_t lo;
+        int overflow = fix64_impl_add_u64_overflow(x_lo, y_lo, &lo);
+        *hi = x_hi + y_hi + overflow;
+        return lo;
+    }
+    static inline uint64_t fix64_impl_add_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
+        uint64_t lo;
+        int overflow = fix64_impl_add_u64_overflow(x_lo, y_lo, &lo);
+        *hi = x_hi + y_hi + overflow;
+        return lo;
+    }
+    static inline uint64_t fix64_impl_sub_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
+        uint64_t lo;
+        int underflow = fix64_impl_sub_u64_underflow(x_lo, y_lo, &lo);
+        *hi = x_hi - y_hi - underflow;
+        return lo;
+    }
+    static inline uint64_t fix64_impl_sub_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
+        uint64_t lo;
+        int underflow = fix64_impl_sub_u64_underflow(x_lo, y_lo, &lo);
+        *hi = x_hi - y_hi - underflow;
+        return lo;
+    }
     static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
         uint64_t x_hi = x >> 32;
         uint64_t x_lo = (uint32_t)x;
@@ -123,10 +176,18 @@ extern "C" {
         return lo;
     }
     static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
-        uint64_t uhi = (uint64_t)*hi;
+        uint64_t uhi;
         uint64_t lo = fix64_impl_mul_u64_u128((uint64_t)x, (uint64_t)y, &uhi);
         uhi -= (x < 0) ? y : 0;
         uhi -= (y < 0) ? x : 0;
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
+        return lo;
+    }
+    static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
+        uint64_t uhi;
+        uint64_t lo = fix64_impl_mul_u64_u128((uint64_t)x, y, &uhi);
+        uhi -= (x < 0) ? y : 0;
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
         *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
         return lo;
@@ -164,8 +225,7 @@ extern "C" {
         uint64_t u_sign = u_hi >> 63;
 
         // uu_hi:uu_lo = abs(u_hi:u_lo)
-        int overflow = fix64_impl_add_u64_overflow(uu_lo, u_sign, &uu_lo);
-        uu_hi += u_sign + overflow;
+        uu_lo = fix64_impl_add_u128(uu_hi, uu_lo, u_sign, u_sign, &uu_hi);
         uu_lo ^= u_sign;
         uu_hi ^= u_sign;
 
@@ -618,7 +678,7 @@ static inline fix64_t fix64_sub_sat(fix64_t lhs, fix64_t rhs) {
 static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
     int64_t hi;
     uint64_t lo = fix64_impl_mul_i64_i128(lhs.repr, rhs.repr, &hi);
-    hi += fix64_impl_add_u64_overflow(lo, (INT64_C(1) << (FIX64_FRAC_BITS - 1)), &lo); // For rounding
+    lo = fix64_impl_add_i128(hi, lo, 0, (1ull << (FIX64_FRAC_BITS - 1)), &hi); // For rounding
     int64_t result = (hi << (64 - FIX64_FRAC_BITS)) | (lo >> FIX64_FRAC_BITS);
     return (fix64_t){ result };
 }
@@ -631,7 +691,7 @@ static inline fix64_t fix64_mul(fix64_t lhs, fix64_t rhs) {
 static inline fix64_t fix64_mul_sat(fix64_t lhs, fix64_t rhs) {
     int64_t hi;
     uint64_t lo = fix64_impl_mul_i64_i128(lhs.repr, rhs.repr, &hi);
-    hi += fix64_impl_add_u64_overflow(lo, (INT64_C(1) << (FIX64_FRAC_BITS - 1)), &lo); // For rounding
+    lo = fix64_impl_add_i128(hi, lo, 0, (1ull << (FIX64_FRAC_BITS - 1)), &hi); // For rounding
     int64_t result = (hi << (64 - FIX64_FRAC_BITS)) | (lo >> FIX64_FRAC_BITS);
     if (FIX64_UNLIKELY(hi > (FIX64_MAX.repr >> FIX64_FRAC_BITS))) {
         result = FIX64_MAX.repr;
@@ -650,12 +710,14 @@ static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
     int64_t hi = lhs.repr >> (64 - FIX64_FRAC_BITS);
     uint64_t lo = (uint64_t)lhs.repr << FIX64_FRAC_BITS;
 
+    uint64_t round_lo = rhs.repr / 2;
+    int64_t round_hi = rhs.repr >> 63;
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         // if signs are same -> result is positive -> add for rounding
-        hi += fix64_impl_add_u64_overflow(lo, rhs.repr / 2, &lo);
+        lo = fix64_impl_add_i128(hi, lo, round_hi, round_lo, &hi);
     } else {
         // else subtract for rounding
-        hi -= fix64_impl_sub_u64_underflow(lo, rhs.repr / 2, &lo);
+        lo = fix64_impl_sub_i128(hi, lo, round_hi, round_lo, &hi);
     }
 
     // fix64_impl_div_i128_i64 already saturates for us
@@ -679,10 +741,10 @@ static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
 
     if ((rhs.repr < 0) == (lhs.repr < 0)) {
         // if signs are same -> result is positive -> add for rounding
-        hi += fix64_impl_add_u64_overflow(lo, rhs.repr / 2, &lo);
+        lo = fix64_impl_add_i128(hi, lo, 0, rhs.repr / 2, &hi);
     } else {
         // else subtract for rounding
-        hi -= fix64_impl_sub_u64_underflow(lo, rhs.repr / 2, &lo);
+        lo = fix64_impl_sub_i128(hi, lo, 0, rhs.repr / 2, &hi);
     }
 
     // fix64_impl_div_i128_i64 already saturates for us

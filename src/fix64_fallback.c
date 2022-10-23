@@ -93,8 +93,7 @@
         uint64_t u_sign = u_hi >> 63;
 
         // uu_hi:uu_lo = abs(u_hi:u_lo)
-        int overflow = fix64_impl_add_u64_overflow(uu_lo, u_sign, &uu_lo);
-        uu_hi += u_sign + overflow;
+        uu_lo = fix64_impl_add_u128(uu_hi, uu_lo, u_sign, u_sign, &uu_hi);
         uu_lo ^= u_sign;
         uu_hi ^= u_sign;
 
