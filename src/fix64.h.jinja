@@ -76,8 +76,8 @@ extern "C" {
         uint64_t ures = (uint64_t)x + (uint64_t)y; // Avoid UB of signed overflow
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
         *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
-        // TODO: this is not optimised well by anything
-        return ((y > 0) ? (*result < x) : (*result > x));
+        // If either of the signs match the result there was no overflow
+        return ((ures ^ (uint64_t)x) | (ures ^ (uint64_t)y)) >> 63;
     }
     static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
         *result = x - y;
@@ -87,8 +87,8 @@ extern "C" {
         uint64_t ures = (uint64_t)x - (uint64_t)y; // Avoid UB of signed overflow
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
         *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
-        // TODO: this is not optimised well by anything
-        return ((y > 0) ? (*result > x) : (*result < x));
+        // If either result or y have the same sign as x there was no overflow
+        return (((uint64_t)y ^ (uint64_t)x) | (ures ^ (uint64_t)x)) >> 63;
     }
 #endif
 
