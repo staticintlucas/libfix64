@@ -1,4 +1,3 @@
-#define FIX64_INTERNAL
 #include "fix64.h"
 #include "fix64_inline.h"
 

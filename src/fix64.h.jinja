@@ -14,13 +14,16 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef __has_builtin
-    #define __has_builtin(_) 0
-    #define FIX64_DEFINED_HAS_BUILTIN // Used to remember to undefine later
+#ifdef __has_builtin
+    #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) __has_builtin(builtin)
+#elif defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+    // GCC < 10 didn't have __has_builtin, check the version number as a fallback
+    #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) (__GNUC__ >= gcc_ver)
+#else
+    #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) 0
 #endif
 
-// GCC < 10 didn't have __has_builtin, so hard code the version
-#if __has_builtin(__builtin_expect_with_probability) || (defined(__GNUC__) && __GNUC__ >= 9)
+#if FIX64_IMPL_HAS_BUILTIN(__builtin_expect_with_probability, 9)
     // Use __builtin_expect_with_probability if available with a probability of 0.9. GCC already
     // uses 0.9 by default for __builtin_expect, but Clang uses 1.0. This makes Clang perform
     // optimisations such as replacing cmov with branches which make the expected case marginally
@@ -28,7 +31,7 @@ extern "C" {
     // use 0.9 probability which will reorder branches, etc, but otherwise won't go overboard.
     #define FIX64_LIKELY(cond) __builtin_expect_with_probability((cond), 1, 0.9)
     #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
-#elif __has_builtin(__builtin_expect) || (defined(__GNUC__) && __GNUC__ >= 3)
+#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect, 3)
     #define FIX64_LIKELY(cond) __builtin_expect((cond), 1)
     #define FIX64_UNLIKELY(cond) __builtin_expect((cond), 0)
 #else
@@ -46,20 +49,11 @@ extern "C" {
     #error "Platforms not using arithmetic shifts for signed integers are currently not supported!"
 #endif
 
-// GCC < 10 didn't have __has_builtin, so hard code the version
-#if __has_builtin(__builtin_add_overflow) || (defined(__GNUC__) && __GNUC__ >= 5)
-    static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
-        return __builtin_add_overflow(x, y, result);
-    }
-    static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
-        return __builtin_add_overflow(x, y, result);
-    }
-    static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
-        return __builtin_sub_overflow(x, y, result);
-    }
-    static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *result) {
-        return __builtin_sub_overflow(x, y, result);
-    }
+#if FIX64_IMPL_HAS_BUILTIN(__builtin_add_overflow, 5)
+    #define fix64_impl_add_u64_overflow __builtin_uaddll_overflow
+    #define fix64_impl_add_i64_overflow __builtin_saddll_overflow
+    #define fix64_impl_sub_u64_underflow __builtin_usubll_overflow
+    #define fix64_impl_sub_i64_underflow __builtin_ssubll_overflow
 #else
     static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
         *result = x + y;
@@ -67,7 +61,7 @@ extern "C" {
     }
     static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
         uint64_t ures = (uint64_t)x + (uint64_t)y; // Avoid UB of signed overflow
-        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on most compilers
         *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
         // If either of the signs match the result there was no overflow
         return ((ures ^ (uint64_t)x) | (ures ^ (uint64_t)y)) >> 63;
@@ -78,57 +72,50 @@ extern "C" {
     }
     static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *result) {
         uint64_t ures = (uint64_t)x - (uint64_t)y; // Avoid UB of signed overflow
-        // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
+        // Avoid UB of unsigned -> signed conversion, gets optimised out on most compilers
         *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
         // If either result or y have the same sign as x there was no overflow
         return (((uint64_t)y ^ (uint64_t)x) | (ures ^ (uint64_t)x)) >> 63;
     }
 #endif
 
-// Avoids warnings
 #ifdef __SIZEOF_INT128__
-    __extension__ typedef __int128 fix64_int128_t;
-    __extension__ typedef unsigned __int128 fix64_uint128_t;
-    #define FIX64_HAVE_INT128
-#endif
-
-#ifdef FIX64_HAVE_INT128
     static inline uint64_t fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
-        fix64_uint128_t res =
-            (((fix64_uint128_t)x_hi << 64) | x_lo) + (((fix64_uint128_t)y_hi << 64) | y_lo);
+        __extension__ unsigned __int128 res =
+            (((unsigned __int128)x_hi << 64) | x_lo) + (((unsigned __int128)y_hi << 64) | y_lo);
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_add_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
-        fix64_int128_t res =
-            (((fix64_int128_t)x_hi << 64) | x_lo) + (((fix64_int128_t)y_hi << 64) | y_lo);
+        __extension__ __int128 res =
+            (((__int128)x_hi << 64) | x_lo) + (((__int128)y_hi << 64) | y_lo);
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_sub_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
-        fix64_uint128_t res =
-            (((fix64_uint128_t)x_hi << 64) | x_lo) - (((fix64_uint128_t)y_hi << 64) | y_lo);
+        __extension__ unsigned __int128 res =
+            (((unsigned __int128)x_hi << 64) | x_lo) - (((unsigned __int128)y_hi << 64) | y_lo);
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_sub_i128(int64_t x_hi, uint64_t x_lo, int64_t y_hi, uint64_t y_lo, int64_t *hi) {
-        fix64_int128_t res =
-            (((fix64_int128_t)x_hi << 64) | x_lo) - (((fix64_int128_t)y_hi << 64) | y_lo);
+        __extension__ __int128 res =
+            (((__int128)x_hi << 64) | x_lo) - (((__int128)y_hi << 64) | y_lo);
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
-        fix64_uint128_t res = (fix64_uint128_t)x * y;
+        __extension__ unsigned __int128 res = (unsigned __int128)x * y;
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
-        fix64_int128_t res = (fix64_int128_t)x * y;
+        __extension__ __int128 res = (__int128)x * y;
         *hi = res >> 64;
         return res;
     }
     static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
-        fix64_int128_t res = (fix64_int128_t)x * y;
+        __extension__ __int128 res = (__int128)x * y;
         *hi = res >> 64;
         return res;
     }
@@ -158,28 +145,22 @@ extern "C" {
         return lo;
     }
     static inline uint64_t fix64_impl_mul_u64_u128(uint64_t x, uint64_t y, uint64_t *hi) {
-        uint64_t x_hi = x >> 32;
-        uint64_t x_lo = (uint32_t)x;
-        uint64_t y_hi = y >> 32;
-        uint64_t y_lo = (uint32_t)y;
-
-        uint64_t xy_hi = x_hi * y_hi;
-        uint64_t xy_md = x_hi * y_lo;
-        uint64_t yx_md = y_hi * x_lo;
-        uint64_t xy_lo = x_lo * y_lo;
+        uint64_t xy_hi = (x >> 32) * (y >> 32);
+        uint64_t xy_md = (x >> 32) * (uint64_t)(uint32_t)y;
+        uint64_t yx_md = (y >> 32) * (uint64_t)(uint32_t)x;
+        uint64_t xy_lo = (uint64_t)(uint32_t)x * (uint64_t)(uint32_t)y;
 
         uint64_t lo;
         int carry0 = fix64_impl_add_u64_overflow(xy_md << 32, yx_md << 32, &lo);
         int carry1 = fix64_impl_add_u64_overflow(lo, xy_lo, &lo);
         *hi = xy_hi + (xy_md >> 32) + (yx_md >> 32) + carry0 + carry1;
-
         return lo;
     }
     static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi) {
         uint64_t uhi;
         uint64_t lo = fix64_impl_mul_u64_u128((uint64_t)x, (uint64_t)y, &uhi);
-        uhi -= (x < 0) ? y : 0;
-        uhi -= (y < 0) ? x : 0;
+        lo = fix64_impl_sub_u128(uhi, lo, (x < 0) ? y : 0, 0, &uhi);
+        lo = fix64_impl_sub_u128(uhi, lo, (y < 0) ? x : 0, 0, &uhi);
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
         *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
         return lo;
@@ -187,14 +168,14 @@ extern "C" {
     static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
         uint64_t uhi;
         uint64_t lo = fix64_impl_mul_u64_u128((uint64_t)x, y, &uhi);
-        uhi -= (x < 0) ? y : 0;
+        lo = fix64_impl_sub_u128(uhi, lo, (x < 0) ? y : 0, 0, &uhi);
         // Avoid UB of unsigned -> signed conversion, gets optimised out on both GCC and Clang
         *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
         return lo;
     }
 #endif
 
-// Don't try to implement division with fix64_int128_t, it is at best as fast as our C/ASM combo
+// Don't try to implement division with __int128, it is at best as fast as our C/ASM combo
 // implementation, but can be slower
 #if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER))
     static inline
@@ -1013,17 +994,6 @@ fix64_t fix64_tgamma(fix64_t arg);
 /// @param arg a fixed point number
 /// @return the natural logarithm of the result of the gamma function
 fix64_t fix64_lgamma(fix64_t arg);
-
-// Clean up defines if used as a public header
-#ifndef FIX64_INTERNAL
-    #ifdef FIX64_DEFINED_HAS_BUILTIN
-        #undef __has_builtin
-        #undef FIX64_DEFINED_HAS_BUILTIN
-    #endif
-
-    #undef FIX64_LIKELY
-    #undef FIX64_UNLIKELY
-#endif
 
 #ifdef __cplusplus
 }

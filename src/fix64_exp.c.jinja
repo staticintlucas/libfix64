@@ -5,7 +5,6 @@
 {% set exp_frac_bits = 64 %}
 {% set mul_frac_bits = 63 %} {# Need one int bit to be able to store log2(e) #}
 
-#define FIX64_INTERNAL
 #include "fix64.h"
 #include "fix64_inline.h"
 
@@ -150,7 +149,7 @@ fix64_t fix64_log2(fix64_t arg) {
         return FIX64_MIN;
     }
 
-    int64_t lz = clz64(arg.repr); // Q31.0
+    int64_t lz = fix64_impl_clz64(arg.repr); // Q31.0
     uint64_t fpart = arg.repr << (lz + 1); // Q0.64
 
     // Note: assumes EXP_FRAC_BITS == 64
