@@ -17,17 +17,11 @@ set(JINJA_SOURCES
 include(CheckPythonRequirements)
 
 # Add commands to generate sources
-set(GEN_SOURCES "")
-foreach(SRC ${JINJA_SOURCES})
-    add_custom_command(
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${SRC}"
-        COMMAND ${Python3_EXECUTABLE} jinja.py
-            "${CMAKE_CURRENT_SOURCE_DIR}/${SRC}.jinja" "${CMAKE_CURRENT_BINARY_DIR}/${SRC}"
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${SRC}.jinja"
-    )
-    list(APPEND GEN_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/${SRC}") # Append generated file to list
-endforeach()
+include(AddJinjaTemplate)
+add_jinja_template(
+    TEMPLATES ${JINJA_SOURCES}
+    OUTPUT_SOURCES GEN_SOURCES
+)
 
 # Add the library
 add_library(fix64 STATIC
