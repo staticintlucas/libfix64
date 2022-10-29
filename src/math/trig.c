@@ -1,49 +1,8 @@
-{#- jinja2 template for fix64_trig.c -#}
-
-{{autogen_comment}}
-
-{% set cheby_frac_bits = 62 %}
-
 #include "fix64.h"
+#include "math/trig.inc"
 
 #include <stddef.h>
 #include <stdint.h>
-
-// Number fractional bits
-#define CHEBYSHEV_FRAC_BITS {{cheby_frac_bits}}
-
-// Use this instead of FIX64_4_PI for accuracy
-#define CHEBYSHEV_2_PI {{const(2 / consts.pi.val, frac_bits=cheby_frac_bits)}}
-
-{% for func in ["sin", "cos", "tan"] %}
-static int64_t chebyshev_{{func}}_impl(int64_t value) {
-    // Coefficients for the chebyshev series
-{% set coefs = chebyshev_coefs[func]() %}
-    static const int64_t chebyshev_coefs[{{coefs | length}}] = {
-{% for coef in coefs %}
-        {{const(coef, frac_bits=cheby_frac_bits, digits=16)}},
-{% endfor %}
-    };
-
-    int64_t val_pow[{{coefs | length}}];
-    val_pow[0] = INT64_C(1) << CHEBYSHEV_FRAC_BITS;
-    for (size_t i = 1; i < sizeof(val_pow) / sizeof(val_pow[0]); i++) {
-        int64_t hi;
-        uint64_t lo = fix64_impl_mul_i64_i128(val_pow[i - 1], value, &hi);
-        val_pow[i] = (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS);
-    }
-
-    int64_t sum = 0;
-    for (size_t i = 0; i < sizeof(chebyshev_coefs) / sizeof(chebyshev_coefs[0]); i++) {
-        int64_t hi;
-        uint64_t lo = fix64_impl_mul_i64_i128(val_pow[i], chebyshev_coefs[i], &hi);
-        sum += (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS);
-    }
-
-    return sum; // Q1.62
-}
-
-{% endfor -%}
 
 fix64_t fix64_sin(fix64_t angle) {
     // Normalise so that 1.0 = pi/2 = 90deg

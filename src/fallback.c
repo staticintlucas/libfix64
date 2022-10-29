@@ -1,5 +1,5 @@
 #include "fix64.h"
-#include "fix64_inline.h"
+#include "fix64/impl.h"
 
 #include <stdint.h>
 

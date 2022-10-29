@@ -1,25 +1,17 @@
-{#- jinja2 template for fix64_str.c -#}
-
-{{autogen_comment}}
-
 #include "fix64.h"
-#include "fix64_inline.h"
+#include "fix64/impl.h"
 
 #include <stddef.h>
 #include <string.h>
 #include <stdint.h>
 
+#include "str.inc"
+
 // Algorithm to calculate number of decimal digits based on https://commaok.xyz/post/lookup_tables/
 // and https://lemire.me/blog/2021/06/03/computing-the-number-of-digits-of-an-integer-even-faster/
 static unsigned digits(uint32_t arg) {
-    static uint64_t table[] = {
-        // len(str(2**i)) << 32 | 2**32 - 10**len(str(2**i))
-{% for coef in digit_coefs %}
-        UINT64_C({{"{:#03x}".format(coef[0])}}) << 32 | UINT64_C({{"{:#010x}".format(coef[1])}}),
-{% endfor %}
-    };
     // Use (arg | 1) because "0" still needs 1 digit
-    return (arg + table[31 - fix64_impl_clz32(arg | 1)]) >> 32;
+    return (arg + digits_coef_table[31 - fix64_impl_clz32(arg | 1)]) >> 32;
 }
 
 static inline const char *decimal_100(uint32_t x) {
@@ -37,13 +29,7 @@ static inline const char *decimal_100(uint32_t x) {
 }
 
 static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
-    static uint64_t rounding[] = {
-        // = 0.5 / 10^prec as a UQ0.64
-{% for coef in rounding_coefs %}
-        {{uconst(coef, frac_bits=64, digits=16)}},
-{% endfor %}
-    };
-    const unsigned max_prec = sizeof(rounding) / sizeof(rounding[0]) - 1;
+    const unsigned max_prec = sizeof(frac_10_rounding) / sizeof(frac_10_rounding[0]) - 1;
     prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
 
     uint32_t ipart = repr >> FIX64_FRAC_BITS;
@@ -52,7 +38,7 @@ static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
 
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
-    if (__builtin_add_overflow(fpart, rounding[prec], &fpart)) {
+    if (__builtin_add_overflow(fpart, frac_10_rounding[prec], &fpart)) {
         // This won't overflow since ipart only uses 31 bits since it comes from a signed int32_t
         ipart++;
     }

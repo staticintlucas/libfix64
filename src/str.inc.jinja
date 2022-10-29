@@ -1,0 +1,17 @@
+{#- jinja2 template for str.inc -#}
+
+{{autogen_comment}}
+
+static uint64_t digits_coef_table[] = {
+    // len(str(2**i)) << 32 | 2**32 - 10**len(str(2**i))
+{% for coef in digit_coefs %}
+    UINT64_C({{"{:#03x}".format(coef[0])}}) << 32 | UINT64_C({{"{:#010x}".format(coef[1])}}),
+{% endfor %}
+};
+
+static uint64_t frac_10_rounding[] = {
+    // = 0.5 / 10^prec as a UQ0.64
+{% for coef in rounding_coefs %}
+    {{uconst(coef, frac_bits=64, digits=16)}},
+{% endfor %}
+};

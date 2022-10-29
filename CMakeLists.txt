@@ -28,17 +28,26 @@ endif()
 
 # Source files
 set(SOURCES
-    "src/fix64_inline.h"
-    "src/fix64_fallback.c"
+    "include/fix64.h"
+    "include/fix64/arith.h"
+    "include/fix64/cmp.h"
+    "include/fix64/impl.h"
+    "include/fix64/math.h"
+    "include/fix64/str.h"
+    "src/fallback.c"
+    "src/math/exp.c"
+    "src/math/trig.c"
+    "src/str.c"
 )
 list(TRANSFORM SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 # Jinja2 templates for autogenerating source files
 set(JINJA_SOURCES
-    "src/fix64.h"
-    "src/fix64_exp.c"
-    "src/fix64_str.c"
-    "src/fix64_trig.c"
+    "include/fix64/consts.h"
+    "include/fix64/cvt.h"
+    "src/math/exp.inc"
+    "src/math/trig.inc"
+    "src/str.inc"
 )
 add_jinja_template(
     TEMPLATES ${JINJA_SOURCES}
@@ -51,8 +60,14 @@ add_library(fix64 STATIC
 )
 
 # Include the source and generated dirs
-target_include_directories(fix64 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_include_directories(fix64 PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/src")
+target_include_directories(fix64 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/src"
+)
+target_include_directories(fix64 PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_BINARY_DIR}/include"
+)
 
 # Set public headers
 set_target_properties(fix64 PROPERTIES PUBLIC_HEADER "${CMAKE_CURRENT_BINARY_DIR}/fix64.h")

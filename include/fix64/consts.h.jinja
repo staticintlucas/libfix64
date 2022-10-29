@@ -1,0 +1,15 @@
+{#- jinja2 template for fix64/consts.h -#}
+
+{{autogen_comment}}
+
+#pragma once
+
+#include <stdint.h>
+
+#include "fix64.h"
+
+{% for name, c in consts.items() %}
+/// fix64_t constant {{c.str}}
+#define FIX64_{{name | upper}} {{" " * (9 - (name | length))-}}
+    ((fix64_t){ {{-const(c.val, digits=9)-}} })
+{% endfor %}
