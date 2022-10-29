@@ -23,6 +23,10 @@ function(add_jinja_template)
     set(GENERATED_SOURCES "")
 
     foreach(SRC ${ARG_TEMPLATES})
+        # Ensure directory exists
+        get_filename_component(FILE_DIR "${CMAKE_CURRENT_BINARY_DIR}/${SRC}" DIRECTORY)
+        file(MAKE_DIRECTORY ${FILE_DIR})
+
         # Add build command
         add_custom_command(
             OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${SRC}"
