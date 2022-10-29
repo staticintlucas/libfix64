@@ -1,12 +1,16 @@
 # 3.12 required for FindPython3 and list(TRANSFORM ...)
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
+# Add include path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 # Uses only C code
 project(libfix64 C)
 
 # Build options
 option(CMAKE_WARNINGS_AS_ERRORS "Treat all compile warnings as errors" OFF)
 
+# Compiler options
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD_REQUIRED ON)
