@@ -70,7 +70,7 @@ target_include_directories(fix64 PUBLIC
 )
 
 # Set public headers
-set_target_properties(fix64 PROPERTIES PUBLIC_HEADER "${CMAKE_CURRENT_BINARY_DIR}/fix64.h")
+set_target_properties(fix64 PROPERTIES PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/fix64.h")
 
 # Add tests
 add_subdirectory(tests)
