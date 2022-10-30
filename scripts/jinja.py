@@ -76,7 +76,7 @@ def render(filename):
         undefined=_jinja2.StrictUndefined)
     template = env.get_template(filename.name)
 
-    return template.render(args).rstrip("\n")
+    return template.render(args).rstrip("\n") + "\n" # ensure exactly one trailing newline
 
 
 if __name__ == "__main__":
