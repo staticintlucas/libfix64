@@ -16,7 +16,7 @@ static inline fix64_t fix64_neg(fix64_t arg) {
     if (FIX64_UNLIKELY(arg.repr < -INT64_MAX)) {
         return FIX64_MAX;
     }
-    return (fix64_t){-arg.repr};
+    return (fix64_t){ -arg.repr };
 }
 
 /// Addition of two fix64_t numbers
@@ -25,7 +25,7 @@ static inline fix64_t fix64_neg(fix64_t arg) {
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
 static inline fix64_t fix64_add(fix64_t lhs, fix64_t rhs) {
-    return (fix64_t){lhs.repr + rhs.repr};
+    return (fix64_t){ lhs.repr + rhs.repr };
 }
 
 /// Saturating addition of two fix64_t numbers
@@ -50,7 +50,7 @@ static inline fix64_t fix64_add_sat(fix64_t lhs, fix64_t rhs) {
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
 static inline fix64_t fix64_sub(fix64_t lhs, fix64_t rhs) {
-    return (fix64_t){lhs.repr - rhs.repr};
+    return (fix64_t){ lhs.repr - rhs.repr };
 }
 
 /// Saturating subtraction of two fix64 numbers
@@ -125,7 +125,7 @@ static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
     int64_t rem;
     int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
 
-    return (fix64_t){(int64_t)result};
+    return (fix64_t){ (int64_t)result };
 }
 
 /// Saturating division of two fix64_t numbers. Result is rounded to the nearest representable
@@ -150,5 +150,5 @@ static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
     int64_t rem;
     int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
 
-    return (fix64_t){(int64_t)result};
+    return (fix64_t){ (int64_t)result };
 }

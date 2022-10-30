@@ -2,8 +2,8 @@
 #include "fix64/impl.h"
 
 #include <stddef.h>
-#include <string.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "str.inc"
 
@@ -15,17 +15,16 @@ static unsigned digits(uint32_t arg) {
 }
 
 static inline const char *decimal_100(uint32_t x) {
-    return &(
-        "00010203040506070809"
-        "10111213141516171819"
-        "20212223242526272829"
-        "30313233343536373839"
-        "40414243444546474849"
-        "50515253545556575859"
-        "60616263646566676869"
-        "70717273747576777879"
-        "80818283848586878889"
-        "90919293949596979899"[x * 2]);
+    return &("00010203040506070809"
+             "10111213141516171819"
+             "20212223242526272829"
+             "30313233343536373839"
+             "40414243444546474849"
+             "50515253545556575859"
+             "60616263646566676869"
+             "70717273747576777879"
+             "80818283848586878889"
+             "90919293949596979899"[x * 2]);
 }
 
 static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
@@ -33,8 +32,7 @@ static char *fmt_frac_10(char *buf, uint64_t repr, unsigned prec) {
     prec = FIX64_UNLIKELY(prec > max_prec) ? max_prec : prec;
 
     uint32_t ipart = repr >> FIX64_FRAC_BITS;
-    uint64_t fpart = (repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1)) <<
-        (64 - FIX64_FRAC_BITS);
+    uint64_t fpart = (repr & ((UINT64_C(1) << FIX64_FRAC_BITS) - 1)) << (64 - FIX64_FRAC_BITS);
 
     // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
     // saturation code for any implementation that doesn't use __builtin_*_overflow
@@ -189,7 +187,7 @@ static char *fmt_frac_2(char *buf, uint64_t repr, unsigned prec) {
 
 size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t fmt) {
 
-    char tmp_buf[256]; // number is formatted here, max width = 255 + 1 for the nul
+    char tmp_buf[256];   // number is formatted here, max width = 255 + 1 for the nul
     char *end = tmp_buf; // points to end of buf
 
     uint64_t repr = val.repr;
@@ -207,7 +205,7 @@ size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t f
     }
 
     char num_buf[72]; // For binary formatting, 64 bits + '.' + alignment
-    char *num_end; // points to end of num_buf
+    char *num_end;    // points to end of num_buf
     if (fmt.base == FIX64_BASE_DECIMAL) {
         num_end = fmt_frac_10(num_buf, repr, prec);
     } else if (fmt.base == FIX64_BASE_HEXADECIMAL) {

@@ -10,6 +10,7 @@
 
 #include "fix64.h"
 
+// clang-format off
 // _Generic is only available since C11
 #if __STDC_VERSION__ >= 201112L
 /// Generic macro to convert a floating point type to fix64_t
@@ -22,6 +23,7 @@
 {% endfor %}
     )(x)
 #endif
+// clang-format on
 
 {% for type, i in ints.items() %}
 /// Converts a fix64_t to an {{type}}
@@ -57,7 +59,7 @@ static inline fix64_t fix64_from_{{i.short}}({{type}} value) {
     else if (value < (FIX64_MIN.repr >> FIX64_FRAC_BITS)) {
         result = FIX64_MIN;
     }
-{%- endif +%}
+{%- endif %} {# -#}
     else {
         result = (fix64_t){ (int64_t)value << FIX64_FRAC_BITS };
     }
@@ -95,16 +97,16 @@ static inline fix64_t fix64_from_{{f.short}}({{type}} value) {
     static const {{type}} max = INT64_MAX;
     static const {{type}} min = INT64_MIN;
 #else
-    static const {{type}} max = (INT64_MAX & ~((INT64_C(1) << {#
+    static const {{type}} max = (INT64_MAX & ~((1ll << {#
         #}(FIX64_BITS - {{f.short | upper}}_MANT_DIG)) - 1));
-    static const {{type}} min = (INT64_MIN & ~((INT64_C(1) << {#
+    static const {{type}} min = (INT64_MIN & ~((1ll << {#
         #}(FIX64_BITS - {{f.short | upper}}_MANT_DIG)) - 1));
 #endif
 {% if type == "long double" %}
     // Note: clang fails to optimise out call to exp2l, so we use a bit shift instead. A long
     // double is more than large enough to store the result so the compiler doesn't complain
     // like it does with float (even though float can accurately hold any power of 2 too).
-    value = value * (INT64_C(1) << FIX64_FRAC_BITS);
+    value = value * (1ll << FIX64_FRAC_BITS);
 {% else %}
     value = value * exp2{{f.suffix}}(FIX64_FRAC_BITS);
 {% endif %}
@@ -119,7 +121,6 @@ static inline fix64_t fix64_from_{{f.short}}({{type}} value) {
         repr = (int64_t)value;
     }
 
-    return (fix64_t){repr};
+    return (fix64_t){ repr };
 }
-
 {% endfor -%}

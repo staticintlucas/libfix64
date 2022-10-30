@@ -1,6 +1,6 @@
 #include <stddef.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "fix64.h"
 #include "fix64/impl.h"
@@ -9,7 +9,7 @@
 
 // Calculates 2**x-1 for UQ0.64 fixed point numbers
 static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
-    uint64_t powers[sizeof(exp2m1_chebyshev_coefs) - sizeof(exp2m1_chebyshev_coefs[0])];
+    uint64_t powers[exp2m1_chebyshev_coefs_len];
     powers[0] = 0; // Should be 1.0 which overflows UQ0.64. But coefs[0] = 0 so it doesn't matter
     powers[1] = arg;
     for (size_t i = 2; i < sizeof(powers) / sizeof(powers[0]); i++) {
@@ -18,7 +18,7 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
     }
 
     uint64_t sum = 0; // UQ0.64
-    for (size_t i = 0; i < sizeof(exp2m1_chebyshev_coefs) / sizeof(exp2m1_chebyshev_coefs[0]); i++) {
+    for (size_t i = 0; i < exp2m1_chebyshev_coefs_len; i++) {
         uint64_t hi;
         // Note: assumes EXP_FRAC_BITS == 64
         fix64_impl_mul_u64_u128(powers[i], exp2m1_chebyshev_coefs[i], &hi);
@@ -38,7 +38,8 @@ static uint64_t turner_log21p_impl(uint64_t arg) {
         uint64_t arg_shr64;
         fix64_impl_mul_u64_u128(arg, arg, &arg_shr64);
         uint64_t arg_hi;
-        uint64_t arg_lo = fix64_impl_add_u128(arg >> 63, arg << 1, 0, arg_shr64, &arg_hi); // UQ64.64
+        uint64_t arg_lo =
+            fix64_impl_add_u128(arg >> 63, arg << 1, 0, arg_shr64, &arg_hi); // UQ64.64
 
         result <<= 1;
         if (arg_hi) { // i.e. if (arg_hi:arg_lo >= 1.0) // Note: assumes EXP_FRAC_BITS == 64
@@ -82,10 +83,12 @@ static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
 
 fix64_t fix64_exp(fix64_t arg) {
     int64_t arg_log2e_hi;
-    uint64_t arg_log2e_lo = fix64_impl_mul_i64_u64_i128(arg.repr, exp_log2e_val, &arg_log2e_hi); // Q32.95
+    uint64_t arg_log2e_lo =
+        fix64_impl_mul_i64_u64_i128(arg.repr, exp_log2e_val, &arg_log2e_hi); // Q32.95
 
     uint32_t round_shift = FIX64_FRAC_BITS + MUL_FRAC_BITS - EXP_FRAC_BITS;
-    arg_log2e_lo = fix64_impl_add_i128(arg_log2e_hi, arg_log2e_lo, 0, 1ull << (round_shift - 1), &arg_log2e_hi); // rounding
+    arg_log2e_lo = fix64_impl_add_i128(
+        arg_log2e_hi, arg_log2e_lo, 0, 1ull << (round_shift - 1), &arg_log2e_hi); // rounding
     arg_log2e_lo = (arg_log2e_hi << (64 - round_shift)) | (arg_log2e_lo >> round_shift);
     arg_log2e_hi >>= round_shift; // Q32.64
 
@@ -95,6 +98,7 @@ fix64_t fix64_exp(fix64_t arg) {
 
 fix64_t fix64_exp2(fix64_t arg) {
     int64_t ipart = fix64_to_int(arg); // Q31.0
+
     uint64_t fmask = (UINT64_C(1) << FIX64_FRAC_BITS) - 1; // Mask for fractional bits
     uint64_t fpart = (arg.repr & fmask) << (EXP_FRAC_BITS - FIX64_FRAC_BITS); // UQ0.64
 
@@ -107,7 +111,8 @@ fix64_t fix64_log(fix64_t arg) {
     // ln(x) = log2(x) / log2(e) = log2(x) * (1/log2(e))
     int64_t result_hi;
     uint64_t result_lo = fix64_impl_mul_i64_u64_i128(log2, log_1_log2e_val, &result_hi); // Q31.96
-    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
+    result_lo = fix64_impl_add_i128(
+        result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
 
     // Note: assumes EXP_FRAC_BITS == 64
     return (fix64_t){ result_hi };
@@ -118,8 +123,10 @@ fix64_t fix64_log10(fix64_t arg) {
 
     // log10(x) = log2(x) / log2(10) = log2(x) * (1 / log2(10))
     int64_t result_hi;
-    uint64_t result_lo = fix64_impl_mul_i64_u64_i128(log2, log10_1_log2_10_val, &result_hi); // Q31.96
-    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
+    uint64_t result_lo =
+        fix64_impl_mul_i64_u64_i128(log2, log10_1_log2_10_val, &result_hi); // Q31.96
+    result_lo = fix64_impl_add_i128(
+        result_hi, result_lo, 0, 1ull << (EXP_FRAC_BITS - 1), &result_hi); // rounding
 
     // Note: assumes EXP_FRAC_BITS == 64
     return (fix64_t){ result_hi };
@@ -131,14 +138,15 @@ fix64_t fix64_log2(fix64_t arg) {
     }
 
     int64_t lz = fix64_impl_clz64(arg.repr); // Q31.0
-    uint64_t fpart = arg.repr << (lz + 1); // Q0.64
+    uint64_t fpart = arg.repr << (lz + 1);   // Q0.64
 
     // Note: assumes EXP_FRAC_BITS == 64
     int64_t result_hi = FIX64_INT_BITS - lz;
     uint64_t result_lo = turner_log21p_impl(fpart); // Q31.64#
 
     uint32_t round_shift = EXP_FRAC_BITS - FIX64_FRAC_BITS;
-    result_lo = fix64_impl_add_i128(result_hi, result_lo, 0, 1ull << (round_shift - 1), &result_hi); // rounding
+    result_lo = fix64_impl_add_i128(
+        result_hi, result_lo, 0, 1ull << (round_shift - 1), &result_hi); // rounding
 
     return (fix64_t){ (result_hi << (64 - round_shift)) | (result_lo >> round_shift) };
 }

@@ -10,6 +10,6 @@
 
 {% for name, c in consts.items() %}
 /// fix64_t constant {{c.str}}
-#define FIX64_{{name | upper}} {{" " * (9 - (name | length))-}}
-    ((fix64_t){ {{-const(c.val, digits=9)-}} })
+#define FIX64_{{name | upper}} {{" " * (8 - (name | length))-}}
+    ((fix64_t){ {{const(c.val, digits=9)}} })
 {% endfor %}

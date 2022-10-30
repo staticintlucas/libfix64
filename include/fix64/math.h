@@ -12,7 +12,7 @@
 /// @param arg the fixed point number to floor
 /// @return the floor of arg
 static inline fix64_t fix64_floor(fix64_t arg) {
-    return (fix64_t){(arg.repr >> FIX64_FRAC_BITS) << FIX64_FRAC_BITS};
+    return (fix64_t){ (arg.repr >> FIX64_FRAC_BITS) << FIX64_FRAC_BITS };
 }
 
 /// Rounds up to the nearest integral value greater than or equal to the fixed point argument

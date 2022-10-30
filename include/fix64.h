@@ -18,16 +18,19 @@ typedef struct {
 /// Number of significant bits for fix64_t (excluding sign bit)
 #define FIX64_BITS      (FIX64_INT_BITS + FIX64_FRAC_BITS)
 /// Maximum value for a fix64_t
-#define FIX64_MAX       ((fix64_t){INT64_MAX})
+#define FIX64_MAX       ((fix64_t){ INT64_MAX })
 /// Minimum value for a fix64_t
-#define FIX64_MIN       ((fix64_t){INT64_MIN})
+#define FIX64_MIN       ((fix64_t){ INT64_MIN })
 /// Smallest positive non-zero value for fix64_t
-#define FIX64_EPSILON   ((fix64_t){INT64_C(1)})
+#define FIX64_EPSILON   ((fix64_t){ INT64_C(1) })
 
+// clang-format tries to wrap inside a type cast (ew...)
+// clang-format off
 /// Creates a fix64_t literal, for example FIX64_C(2.5)
-#define FIX64_C(x) ((fix64_t){ \
-    (int64_t)((long double)(x##L) * (1ull << FIX64_FRAC_BITS) + (x##l < 0.L ? -0.5L : 0.5L)) \
-})
+#define FIX64_C(x)                                                          \
+    ((fix64_t){ (int64_t)((long double)(x##L) * (1ull << FIX64_FRAC_BITS) + \
+    (x##L < 0.L ? -0.5L : 0.5L)) })
+// clang-format on
 
 #include "fix64/arith.h"
 #include "fix64/cmp.h"

@@ -16,6 +16,7 @@ static const uint64_t exp2m1_chebyshev_coefs[{{coefs | length}}] = {
     {{const(coef, frac_bits=exp_frac_bits, digits=16)}},
 {% endfor %}
 };
+static const size_t exp2m1_chebyshev_coefs_len = sizeof(exp2m1_chebyshev_coefs) / sizeof(exp2m1_chebyshev_coefs[0]);
 
 static const uint64_t exp_log2e_val = {{uconst(consts.log2e.val, frac_bits=mul_frac_bits)}};
 static const uint64_t log_1_log2e_val = {{uconst(1 / consts.log2e.val, frac_bits=exp_frac_bits)}};
