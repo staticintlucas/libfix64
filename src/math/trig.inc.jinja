@@ -8,16 +8,18 @@
 #define CHEBYSHEV_FRAC_BITS {{cheby_frac_bits}}
 
 // Use this instead of FIX64_2_PI for accuracy
-#define CHEBYSHEV_2_PI {{const(2 / consts.pi.val, frac_bits=cheby_frac_bits)}}
+#define CHEBYSHEV_2_PI      {{const(2 / consts.pi.val, frac_bits=cheby_frac_bits)}}
 
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
     // Coefficients for the chebyshev series
 {% set coefs = chebyshev_coefs[func]() %}
     static const int64_t chebyshev_coefs[{{coefs | length}}] = {
+        // clang-format off
 {% for coef in coefs %}
         {{const(coef, frac_bits=cheby_frac_bits, digits=16)}},
 {% endfor %}
+        // clang-format on
     };
 
     int64_t val_pow[{{coefs | length}}];

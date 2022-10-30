@@ -4,14 +4,18 @@
 
 static uint64_t digits_coef_table[] = {
     // len(str(2**i)) << 32 | 2**32 - 10**len(str(2**i))
+    // clang-format off
 {% for coef in digit_coefs %}
     UINT64_C({{"{:#03x}".format(coef[0])}}) << 32 | UINT64_C({{"{:#010x}".format(coef[1])}}),
 {% endfor %}
+    // clang-format on
 };
 
 static uint64_t frac_10_rounding[] = {
     // = 0.5 / 10^prec as a UQ0.64
+    // clang-format off
 {% for coef in rounding_coefs %}
     {{uconst(coef, frac_bits=64, digits=16)}},
 {% endfor %}
+    // clang-format on
 };
