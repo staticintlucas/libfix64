@@ -57,7 +57,7 @@ To launch the tests, run:
 
 ~~~sh
 cd build
-ctest --parallel 8
+ctest --test-dir build/tests --parallel 8
 ~~~
 
 [jinja2]: https://palletsprojects.com/p/jinja/
