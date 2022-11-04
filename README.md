@@ -56,7 +56,6 @@ These are a collection of executables written in C using [ctest] and link to the
 To launch the tests, run:
 
 ~~~sh
-cd build
 ctest --test-dir build/tests --parallel 8
 ~~~
 
