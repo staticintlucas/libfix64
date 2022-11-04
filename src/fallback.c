@@ -20,7 +20,7 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint6
     }
 
     // normalise divisor and dividend
-    uint32_t shift = clz64(v); // shift for normalization
+    uint32_t shift = fix64_impl_clz64(v); // shift for normalization
 
     // if (shift) performs better than the bit manip done by libdivide to avoid UB of u_lo >> 64
     // when shift == 0. Implementation is ~20% faster on AMD (Zen1) and ~5% on Intel (Skylake)
