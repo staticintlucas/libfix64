@@ -196,11 +196,6 @@ jobs:
         pip install -U -r requirements.txt
 
     - name: Configure project
-      if: ${{ matrix.cmake-version == '3.12' }} # 3.12 didn't support -S and -B yet
-      run: |
-        mkdir build && cd build
-        cmake ..
-    - name: Configure project
       run: |
         cmake -S. -Bbuild -DFIX64_WARNINGS_AS_ERRORS=1 -DFIX64_OVERRIDE_USE_FALLBACK=1
 
