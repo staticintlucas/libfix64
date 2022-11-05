@@ -15,6 +15,11 @@ set(TESTS
     cos
     tan
 )
+if(FIX64_OVERRIDE_USE_FALLBACK)
+    list(APPEND TESTS
+        fallback_sat_arith
+    )
+endif()
 
 # All tests link to libfix64 of course
 set(TEST_LINK_LIBRARIES fix64)
