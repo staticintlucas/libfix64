@@ -14,12 +14,12 @@
     #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) 0
 #endif
 
-#if FIX64_IMPL_OVERRIDE_USE_FALLBACK
-    // don't define anything => use fallback
-#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect_with_probability, 9)
-    #define FIX64_IMPL_USE_BUILTIN_EXPECT_WITH_PROBABILITY 1
-#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect, 3)
-    #define FIX64_IMPL_USE_BUILTIN_EXPECT 1
+#if !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+    #if FIX64_IMPL_HAS_BUILTIN(__builtin_expect_with_probability, 9)
+        #define FIX64_IMPL_USE_BUILTIN_EXPECT_WITH_PROBABILITY 1
+    #elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect, 3)
+        #define FIX64_IMPL_USE_BUILTIN_EXPECT 1
+    #endif
 #endif
 
 #if FIX64_IMPL_HAS_BUILTIN(__builtin_add_overflow, 5) && !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
@@ -57,10 +57,18 @@
 #endif
 
 #if FIX64_IMPL_USE_BUILTIN_ARITH_OVERFLOW
-    #define fix64_impl_add_u64_overflow  __builtin_uaddll_overflow
-    #define fix64_impl_add_i64_overflow  __builtin_saddll_overflow
-    #define fix64_impl_sub_u64_underflow __builtin_usubll_overflow
-    #define fix64_impl_sub_i64_underflow __builtin_ssubll_overflow
+static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
+    return __builtin_add_overflow(x, y, result);
+}
+static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *result) {
+    return __builtin_add_overflow(x, y, result);
+}
+static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
+    return __builtin_sub_overflow(x, y, result);
+}
+static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *result) {
+    return __builtin_sub_overflow(x, y, result);
+}
 #else
 static inline int fix64_impl_add_u64_overflow(uint64_t x, uint64_t y, uint64_t *result) {
     *result = x + y;
@@ -128,7 +136,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
     *hi = res >> 64;
     return res;
 }
-#else // if !FIX64_IMPL_USE_INT128
+#else  // if !FIX64_IMPL_USE_INT128
 static inline uint64_t
 fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
     uint64_t lo;
