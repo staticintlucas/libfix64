@@ -78,8 +78,8 @@ static inline int fix64_impl_add_i64_overflow(int64_t x, int64_t y, int64_t *res
     uint64_t ures = (uint64_t)x + (uint64_t)y; // Avoid UB of signed overflow
     // Avoid UB of unsigned -> signed conversion, gets optimised out on most compilers
     *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
-    // If either of the signs match the result there was no overflow
-    return ((ures ^ (uint64_t)x) | (ures ^ (uint64_t)y)) >> 63;
+    // If neither of the signs match the result there was an overflow
+    return ((ures ^ (uint64_t)x) & (ures ^ (uint64_t)y)) >> 63;
 }
 static inline int fix64_impl_sub_u64_underflow(uint64_t x, uint64_t y, uint64_t *result) {
     *result = x - y;
@@ -89,8 +89,8 @@ static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *re
     uint64_t ures = (uint64_t)x - (uint64_t)y; // Avoid UB of signed overflow
     // Avoid UB of unsigned -> signed conversion, gets optimised out on most compilers
     *result = (ures > INT64_MAX) ? (int64_t)(ures - INT64_MIN) + INT64_MIN : (int64_t)ures;
-    // If either result or y have the same sign as x there was no overflow
-    return (((uint64_t)y ^ (uint64_t)x) | (ures ^ (uint64_t)x)) >> 63;
+    // If neither result nor y have the same sign as x there was overflow
+    return (((uint64_t)y ^ (uint64_t)x) & (ures ^ (uint64_t)x)) >> 63;
 }
 #endif
 
