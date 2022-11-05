@@ -4,7 +4,18 @@
 extern "C" {
 #endif
 
+#include <float.h>
 #include <stdint.h>
+
+#if FLT_RADIX != 2
+    #error "Platforms where FLT_RADIX != 2 are currently not supported!"
+#endif
+#if (-1 & 3) != 3
+    #error "Platforms not using two's complement for signed integers are currently not supported!"
+#endif
+#if (-1 >> 1) != -1
+    #error "Platforms not using arithmetic shifts for signed integers are currently not supported!"
+#endif
 
 /// Signed fixed point Q31.32 type
 typedef struct {

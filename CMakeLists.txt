@@ -10,7 +10,8 @@ include(AddJinjaTemplate) # Add command to render Jinja templates
 project(libfix64 C)
 
 # Build options
-option(CMAKE_WARNINGS_AS_ERRORS "Treat all compile warnings as errors" OFF)
+option(FIX64_WARNINGS_AS_ERRORS "Treat all compile warnings as errors" OFF)
+option(FIX64_OVERRIDE_USE_FALLBACK "Use fallback implementations rather than compiler builtins (useful for testing)" OFF)
 
 # Compiler options
 set(CMAKE_C_STANDARD 99)
@@ -28,6 +29,10 @@ endif()
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+if (FIX64_OVERRIDE_USE_FALLBACK)
+    add_compile_definitions(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
 endif()
 
 # Source files

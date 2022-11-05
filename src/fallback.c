@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if !(defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)))
+#if !FIX64_IMPL_USE_NATIVE_DIVQ
 
 uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
 

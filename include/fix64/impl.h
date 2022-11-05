@@ -1,18 +1,9 @@
 #pragma once
 
-#include <float.h>
 #include <limits.h>
 #include <stdint.h>
 
-#if FLT_RADIX != 2
-    #error "Platforms where FLT_RADIX != 2 are currently not supported!"
-#endif
-#if (-1 & 3) != 3
-    #error "Platforms not using two's complement for signed integers are currently not supported!"
-#endif
-#if (-1 >> 1) != -1
-    #error "Platforms not using arithmetic shifts for signed integers are currently not supported!"
-#endif
+// Feature detection
 
 #ifdef __has_builtin
     #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) __has_builtin(builtin)
@@ -23,7 +14,33 @@
     #define FIX64_IMPL_HAS_BUILTIN(builtin, gcc_ver) 0
 #endif
 
-#if FIX64_IMPL_HAS_BUILTIN(__builtin_expect_with_probability, 9)
+#if FIX64_IMPL_OVERRIDE_USE_FALLBACK
+    // don't define anything => use fallback
+#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect_with_probability, 9)
+    #define FIX64_IMPL_USE_BUILTIN_EXPECT_WITH_PROBABILITY 1
+#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect, 3)
+    #define FIX64_IMPL_USE_BUILTIN_EXPECT 1
+#endif
+
+#if FIX64_IMPL_HAS_BUILTIN(__builtin_add_overflow, 5) && !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+    #define FIX64_IMPL_USE_BUILTIN_ARITH_OVERFLOW 1
+#endif
+
+#if defined(__SIZEOF_INT128__) && !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+    #define FIX64_IMPL_USE_INT128 1
+#endif
+
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+    #define FIX64_IMPL_USE_NATIVE_DIVQ 1
+#endif
+
+#if FIX64_IMPL_HAS_BUILTIN(__builtin_clz, 4) && !defined(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+    #define FIX64_IMPL_USE_BUILTIN_CLZ 1
+#endif
+
+// Implement features
+
+#if FIX64_IMPL_USE_BUILTIN_EXPECT_WITH_PROBABILITY
     // Use __builtin_expect_with_probability if available with a probability of 0.9. GCC already
     // uses 0.9 by default for __builtin_expect, but Clang uses 1.0. This makes Clang perform
     // optimisations such as replacing cmov with branches which make the expected case marginally
@@ -31,7 +48,7 @@
     // use 0.9 probability which will reorder branches, etc, but otherwise won't go overboard.
     #define FIX64_LIKELY(cond)   __builtin_expect_with_probability((cond), 1, 0.9)
     #define FIX64_UNLIKELY(cond) __builtin_expect_with_probability((cond), 0, 0.9)
-#elif FIX64_IMPL_HAS_BUILTIN(__builtin_expect, 3)
+#elif FIX64_IMPL_USE_BUILTIN_EXPECT
     #define FIX64_LIKELY(cond)   __builtin_expect((cond), 1)
     #define FIX64_UNLIKELY(cond) __builtin_expect((cond), 0)
 #else
@@ -39,7 +56,7 @@
     #define FIX64_UNLIKELY(cond) (cond)
 #endif
 
-#if FIX64_IMPL_HAS_BUILTIN(__builtin_add_overflow, 5)
+#if FIX64_IMPL_USE_BUILTIN_ARITH_OVERFLOW
     #define fix64_impl_add_u64_overflow  __builtin_uaddll_overflow
     #define fix64_impl_add_i64_overflow  __builtin_saddll_overflow
     #define fix64_impl_sub_u64_underflow __builtin_usubll_overflow
@@ -69,8 +86,7 @@ static inline int fix64_impl_sub_i64_underflow(int64_t x, int64_t y, int64_t *re
 }
 #endif
 
-#ifdef __SIZEOF_INT128__
-
+#if FIX64_IMPL_USE_INT128
 static inline uint64_t
 fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
     __extension__ unsigned __int128 res =
@@ -112,9 +128,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
     *hi = res >> 64;
     return res;
 }
-
-#else // if !defined(__SIZEOF_INT128__)
-
+#else // if !FIX64_IMPL_USE_INT128
 static inline uint64_t
 fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
     uint64_t lo;
@@ -172,13 +186,11 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
     *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
     return lo;
 }
+#endif // if FIX64_IMPL_USE_INT128
 
-#endif // if defined(__SIZEOF_INT128__)
-
-// Don't try to implement division with __int128, it is at best as fast as our C/ASM combo
+// Don't try to implement division with __int128, it is at best as fast as our C/ASM combo fallback
 // implementation, but can be slower
-#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER))
-
+#if FIX64_IMPL_USE_NATIVE_DIVQ
 static inline uint64_t
 fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
     if (FIX64_UNLIKELY(u_hi >= v)) {
@@ -249,7 +261,7 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
         }
     }
 
-    uint64_t q;
+    int64_t q;
     // clang-format off
     __asm__ (
         "idivq\t%[v]"
@@ -260,16 +272,12 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
     // clang-format on
     return q;
 }
-
 #else
-
 uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r);
 int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r);
-
 #endif
 
-#if FIX64_IMPL_HAS_BUILTIN(__builtin_clz, 4)
-
+#if FIX64_IMPL_USE_BUILTIN_CLZ
 static inline unsigned fix64_impl_clz32(uint32_t arg) {
     // clz has UB when arg == 0, but this branch is optimised away pretty nicely on e.g. ARM where
     // the underlying clz instruction is defined
@@ -280,9 +288,7 @@ static inline unsigned fix64_impl_clz64(uint64_t arg) {
     // the underlying clz instruction is defined
     return arg ? __builtin_clzll(arg) : (CHAR_BIT * sizeof(arg));
 }
-
 #else
-
 static inline unsigned fix64_impl_clz32(uint32_t arg) {
     unsigned result = 0;
     if (arg == 0) {
@@ -313,5 +319,4 @@ static inline unsigned fix64_impl_clz64(uint64_t arg) {
     }
     return result;
 }
-
 #endif
