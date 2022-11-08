@@ -36,6 +36,20 @@ foreach(TEST ${TESTS})
     add_executable("test_${TEST}" EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/${TEST}.c")
     target_link_libraries("test_${TEST}" PRIVATE ${TEST_LINK_LIBRARIES})
 
+    # Compile options
+    set_target_properties("test_${TEST}" PROPERTIES C_STANDARD 99)
+    set_target_properties("test_${TEST}" PROPERTIES C_EXTENSIONS OFF)
+    set_target_properties("test_${TEST}" PROPERTIES C_STANDARD_REQUIRED ON)
+    set_target_properties("test_${TEST}" PROPERTIES EXPORT_COMPILE_COMMANDS ON)
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Intel")
+        target_compile_options("test_${TEST}" PRIVATE -Wall -Wextra -Wpedantic)
+        if (FIX64_WARNINGS_AS_ERRORS)
+            target_compile_options("test_${TEST}" PRIVATE -Werror)
+        endif()
+    else()
+        message(WARNING "Compiler \"${CMAKE_C_COMPILER_ID}\" not recognised. Continuing without setting flags")
+    endif()
+
     # Add a "test" which builds the actual test binary. Add as setup for each test's fixture
     add_test("build_${TEST}" "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target "test_${TEST}")
     set_tests_properties("build_${TEST}" PROPERTIES FIXTURES_SETUP "fixture_${TEST}")

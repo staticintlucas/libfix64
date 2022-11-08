@@ -12,28 +12,7 @@ project(libfix64 C)
 # Build options
 option(FIX64_WARNINGS_AS_ERRORS "Treat all compile warnings as errors" OFF)
 option(FIX64_OVERRIDE_USE_FALLBACK "Use fallback implementations rather than compiler builtins (useful for testing)" OFF)
-
-# Compiler options
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-if(CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Intel")
-    add_compile_options(-Wall -Wextra -Wpedantic)
-    if (FIX64_WARNINGS_AS_ERRORS)
-        add_compile_options(-Werror)
-    endif()
-else()
-    message(WARNING "Compiler \"${CMAKE_C_COMPILER_ID}\" not recognised. Continuing without setting flags")
-endif()
-
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Release")
-endif()
-
-if (FIX64_OVERRIDE_USE_FALLBACK)
-    add_compile_definitions(FIX64_IMPL_OVERRIDE_USE_FALLBACK)
-endif()
+option(FIX64_EXPORT_COMPILE_COMMANDS "Export a compile_commands.json database" ON)
 
 # Source files
 set(SOURCES
@@ -77,6 +56,28 @@ target_include_directories(fix64 PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_BINARY_DIR}/include"
 )
+
+# Compiler options
+set_target_properties(fix64 PROPERTIES C_STANDARD 99)
+set_target_properties(fix64 PROPERTIES C_EXTENSIONS OFF)
+set_target_properties(fix64 PROPERTIES C_STANDARD_REQUIRED ON)
+set_target_properties(fix64 PROPERTIES EXPORT_COMPILE_COMMANDS ON)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Intel")
+    target_compile_options(fix64 PRIVATE -Wall -Wextra -Wpedantic)
+    if (FIX64_WARNINGS_AS_ERRORS)
+        target_compile_options(fix64 PRIVATE -Werror)
+    endif()
+else()
+    message(WARNING "Compiler \"${CMAKE_C_COMPILER_ID}\" not recognised. Continuing without setting flags")
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+if (FIX64_OVERRIDE_USE_FALLBACK)
+    target_compile_definitions(fix64 PUBLIC FIX64_IMPL_OVERRIDE_USE_FALLBACK)
+endif()
 
 # Set public headers
 set_target_properties(fix64 PROPERTIES PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/fix64.h")
