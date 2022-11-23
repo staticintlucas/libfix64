@@ -17,7 +17,8 @@ set(TESTS
 )
 if(FIX64_OVERRIDE_USE_FALLBACK)
     list(APPEND TESTS
-        fallback_sat_arith
+        fallback_overflow
+        fallback_int128
     )
 endif()
 
