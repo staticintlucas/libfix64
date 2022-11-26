@@ -34,10 +34,8 @@ static inline fix64_t fix64_add(fix64_t lhs, fix64_t rhs) {
 /// @param rhs right hand side for the addition
 /// @return the sum of the two inputs
 static inline fix64_t fix64_add_sat(fix64_t lhs, fix64_t rhs) {
-    // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
-    // saturation code for any implementation that doesn't use __builtin_*_overflow
     fix64_t result;
-    int overflow = __builtin_add_overflow(lhs.repr, rhs.repr, &result.repr);
+    int overflow = fix64_impl_add_i64_overflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
         result = (rhs.repr < 0) ? FIX64_MIN : FIX64_MAX;
     }
@@ -59,10 +57,8 @@ static inline fix64_t fix64_sub(fix64_t lhs, fix64_t rhs) {
 /// @param rhs right hand side for the subtraction
 /// @return the difference of the two inputs
 static inline fix64_t fix64_sub_sat(fix64_t lhs, fix64_t rhs) {
-    // TODO add compiler-agnostic version? GCC/Clang currently produce pretty suboptimal signed
-    // saturation code for any implementation that doesn't use __builtin_*_overflow
     fix64_t result;
-    int overflow = __builtin_sub_overflow(lhs.repr, rhs.repr, &result.repr);
+    int overflow = fix64_impl_sub_i64_underflow(lhs.repr, rhs.repr, &result.repr);
     if (FIX64_UNLIKELY(overflow)) {
         result = (rhs.repr > 0) ? FIX64_MIN : FIX64_MAX;
     }
