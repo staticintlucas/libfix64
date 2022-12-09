@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <math.h>
 
 #include <fix64.h>
@@ -29,9 +30,9 @@ int main() {
         fix64_t result = fix64_tan(arg);
 
         if (!approx_eq(result, expected)) {
-            printf("tan(%.10f [0x%016lx])\n", fix64_to_dbl(arg), arg.repr);
-            printf("expected %.10f [0x%016lx]\n", fix64_to_dbl(expected), expected.repr);
-            printf("got      %.10f [0x%016lx]\n", fix64_to_dbl(result), result.repr);
+            printf("tan(%.10f [0x%016" PRIx64 "])\n", fix64_to_dbl(arg), arg.repr);
+            printf("expected %.10f [0x%016" PRIx64 "]\n", fix64_to_dbl(expected), expected.repr);
+            printf("got      %.10f [0x%016" PRIx64 "]\n", fix64_to_dbl(result), result.repr);
             return 1;
         }
     }
