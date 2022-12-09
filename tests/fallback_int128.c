@@ -1,6 +1,4 @@
 #include "fix64/impl.h"
-#include <bits/stdint-intn.h>
-#include <bits/stdint-uintn.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
