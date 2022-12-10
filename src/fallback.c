@@ -13,10 +13,9 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint6
     // https://ridiculousfish.com/blog/posts/labor-of-division-episode-vi.html
 
     // Check to make sure the result fits in a uint64_t
-    // If not return UINT64_MAX for both quotient and remainder
+    // If not use u_hi % v which will be equivalent to having the quotient wrap
     if (FIX64_UNLIKELY(u_hi >= v)) {
-        *r = INT64_MAX;
-        return INT64_MAX;
+        u_hi %= v;
     }
 
     // normalise divisor and dividend
@@ -114,15 +113,6 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t 
     // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
     if (!FIX64_UNLIKELY(uv >> 63)) {
         if (q_sign) {
-            // u, v both positive => q positive
-            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
-            // or u, v both negative => q positive
-            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
-                *r = INT64_MAX;
-                return INT64_MAX;
-            }
-        } else {
             // u positive, v negative => q negative
             // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
             // or u negative, v positive => q negative
@@ -130,6 +120,15 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t 
             if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
                 *r = INT64_MIN;
                 return INT64_MIN;
+            }
+        } else {
+            // u, v both positive => q positive
+            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
+            // or u, v both negative => q positive
+            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
+            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
+                *r = INT64_MAX;
+                return INT64_MAX;
             }
         }
     }
