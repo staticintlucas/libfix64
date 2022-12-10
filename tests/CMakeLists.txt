@@ -19,6 +19,7 @@ if(FIX64_OVERRIDE_USE_FALLBACK)
     list(APPEND TESTS
         fallback_overflow
         fallback_int128
+        fallback_clz
     )
 endif()
 
