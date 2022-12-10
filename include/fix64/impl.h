@@ -249,15 +249,6 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
     // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
     if (!FIX64_UNLIKELY(uv >> 63)) {
         if (q_sign) {
-            // u, v both positive => q positive
-            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
-            // or u, v both negative => q positive
-            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
-                *r = INT64_MAX;
-                return INT64_MAX;
-            }
-        } else {
             // u positive, v negative => q negative
             // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
             // or u negative, v positive => q negative
@@ -265,6 +256,15 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
             if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
                 *r = INT64_MIN;
                 return INT64_MIN;
+            }
+        } else {
+            // u, v both positive => q positive
+            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
+            // or u, v both negative => q positive
+            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
+            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
+                *r = INT64_MAX;
+                return INT64_MAX;
             }
         }
     }
