@@ -14,6 +14,7 @@ set(TESTS
     sin
     cos
     tan
+    impl_div128
 )
 if(FIX64_OVERRIDE_USE_FALLBACK)
     list(APPEND TESTS
