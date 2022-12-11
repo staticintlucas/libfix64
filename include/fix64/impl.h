@@ -202,8 +202,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
 static inline uint64_t
 fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
     if (FIX64_UNLIKELY(u_hi >= v)) {
-        *r = UINT64_MAX;
-        return UINT64_MAX;
+        u_hi %= v;
     }
 
     uint64_t q;
@@ -223,6 +222,7 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
     uint64_t uu_hi = u_hi;
     uint64_t uu_lo = u_lo;
     uint64_t uv = v;
+    uint64_t ur;
 
     // u_sign = -(u < 0)
     uint64_t u_sign = u_hi >> 63;
@@ -237,48 +237,16 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
-    // handle INT64_MIN as a special case, if u_hi == INT64_MIN (i.e. MSB is set) division will
-    // always overflow
-    if (FIX64_UNLIKELY(uu_hi >> 63)) {
-        *r = (q_sign) ? INT64_MIN : INT64_MAX;
-        return (q_sign) ? INT64_MIN : INT64_MAX;
-    }
+    uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv, &ur);
 
-    uint64_t uu_lsh63 = (uu_hi << 1) | (uu_lo >> 63);
+    // branchless if (q_sign) negate result & ur
+    result ^= q_sign;
+    result -= q_sign;
+    ur ^= u_sign;
+    ur -= u_sign;
 
-    // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
-    if (!FIX64_UNLIKELY(uv >> 63)) {
-        if (q_sign) {
-            // u positive, v negative => q negative
-            // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
-            // or u negative, v positive => q negative
-            // u_min = -0x8000_0000 * v - (v - 1) => uu < 0x8000_0001 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
-                *r = INT64_MIN;
-                return INT64_MIN;
-            }
-        } else {
-            // u, v both positive => q positive
-            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
-            // or u, v both negative => q positive
-            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
-                *r = INT64_MAX;
-                return INT64_MAX;
-            }
-        }
-    }
-
-    int64_t q;
-    // clang-format off
-    __asm__ (
-        "idivq\t%[v]"
-        : "=a"(q), "=d"(*r) // quotient ends up in rax, remainder in rdx
-        : [v]"r"(v), "d"(u_hi), "a"(u_lo) // dividend goes in rdx:rax
-        : "flags" // divq leaves flags in an undefined state
-    );
-    // clang-format on
-    return q;
+    *r = ur;
+    return result;
 }
 #else
 uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r);

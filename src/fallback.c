@@ -101,45 +101,13 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t 
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
-    // handle INT64_MIN as a special case, if u_hi == INT64_MIN (i.e. MSB is set) division will
-    // always overflow
-    if (FIX64_UNLIKELY(uu_hi >> 63)) {
-        *r = (q_sign) ? INT64_MIN : INT64_MAX;
-        return (q_sign) ? INT64_MIN : INT64_MAX;
-    }
-
-    uint64_t uu_lsh63 = (uu_hi << 1) | (uu_lo >> 63);
-
-    // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
-    if (!FIX64_UNLIKELY(uv >> 63)) {
-        if (q_sign) {
-            // u positive, v negative => q negative
-            // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
-            // or u negative, v positive => q negative
-            // u_min = -0x8000_0000 * v - (v - 1) => uu < 0x8000_0001 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
-                *r = INT64_MIN;
-                return INT64_MIN;
-            }
-        } else {
-            // u, v both positive => q positive
-            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
-            // or u, v both negative => q positive
-            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
-            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
-                *r = INT64_MAX;
-                return INT64_MAX;
-            }
-        }
-    }
-
     uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv, &ur);
 
     // branchless if (q_sign) negate result & ur
-    result += q_sign;
-    ur += q_sign;
     result ^= q_sign;
-    ur ^= q_sign;
+    result -= q_sign;
+    ur ^= u_sign;
+    ur -= u_sign;
 
     *r = ur;
     return result;
