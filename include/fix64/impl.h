@@ -253,6 +253,67 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint6
 int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r);
 #endif
 
+static inline uint64_t fix64_impl_div_u128_u64_sat(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
+    if (FIX64_UNLIKELY(u_hi >= v)) {
+        *r = UINT64_MAX;
+        return UINT64_MAX;
+    }
+    return fix64_impl_div_u128_u64(u_hi, u_lo, v, r);
+}
+
+static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r) {
+    // unsigned variables
+    uint64_t uu_hi = u_hi;
+    uint64_t uu_lo = u_lo;
+    uint64_t uv = v;
+
+    // u_sign = -(u < 0)
+    uint64_t u_sign = u_hi >> 63;
+
+    // uu_hi:uu_lo = abs(u_hi:u_lo)
+    uu_lo = fix64_impl_add_u128(uu_hi, uu_lo, u_sign, u_sign, &uu_hi);
+    uu_lo ^= u_sign;
+    uu_hi ^= u_sign;
+
+    uint64_t v_sign = v >> 63; // = -(v < 0)
+    uv = (v_sign) ? -uv : uv;  // = labs(v);
+
+    uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
+
+    // handle INT64_MIN as a special case, if u_hi == INT64_MIN (i.e. MSB is set) division will
+    // always overflow
+    if (FIX64_UNLIKELY(uu_hi >> 63)) {
+        *r = (u_sign) ? INT64_MIN : INT64_MAX;
+        return (q_sign) ? INT64_MIN : INT64_MAX;
+    }
+
+    uint64_t uu_lsh63 = (uu_hi << 1) | (uu_lo >> 63);
+    // if v == INT64_MIN (i.e. MSB is set) division will never overflow if (u_hi != INT64_MIN)
+    if (!FIX64_UNLIKELY(uv >> 63)) {
+        if (q_sign) {
+            // u positive, v negative => q negative
+            // u_max = -0x8000_0000 * v + (-v - 1) => uu < 0x8000_0001 * uv
+            // or u negative, v positive => q negative
+            // u_min = -0x8000_0000 * v - (v - 1) => uu < 0x8000_0001 * uv
+            if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
+                *r = INT64_MIN;
+                return INT64_MIN;
+            }
+        } else {
+            // u, v both positive => q positive
+            // u_max = 0x7fff_ffff * v + (v - 1) => uu < 0x8000_0000 * uv
+            // or u, v both negative => q positive
+            // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
+            if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
+                *r = INT64_MAX;
+                return INT64_MAX;
+            }
+        }
+    }
+
+    return fix64_impl_div_i128_i64(u_hi, u_lo, v, r);
+}
+
 #if FIX64_IMPL_USE_BUILTIN_CLZ
 static inline unsigned fix64_impl_clz32(uint32_t arg) {
     // clz has UB when arg == 0, but this branch is optimised away pretty nicely on e.g. ARM where

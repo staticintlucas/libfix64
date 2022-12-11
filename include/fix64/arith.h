@@ -115,9 +115,6 @@ static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
         lo = fix64_impl_sub_i128(hi, lo, round_hi, round_lo, &hi);
     }
 
-    // fix64_impl_div_i128_i64 already saturates for us
-    // TODO do we manually implement wrapping logic? What advantage does the non-saturating function
-    // have if it has to implement extra logic to not saturate?
     int64_t rem;
     int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
 
@@ -142,9 +139,8 @@ static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
         lo = fix64_impl_sub_i128(hi, lo, 0, rhs.repr / 2, &hi);
     }
 
-    // fix64_impl_div_i128_i64 already saturates for us
     int64_t rem;
-    int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
+    int64_t result = fix64_impl_div_i128_i64_sat(hi, lo, rhs.repr, &rem);
 
     return (fix64_t){ (int64_t)result };
 }
