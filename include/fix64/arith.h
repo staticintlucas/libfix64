@@ -115,8 +115,7 @@ static inline fix64_t fix64_div(fix64_t lhs, fix64_t rhs) {
         lo = fix64_impl_sub_i128(hi, lo, round_hi, round_lo, &hi);
     }
 
-    int64_t rem;
-    int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr, &rem);
+    int64_t result = fix64_impl_div_i128_i64(hi, lo, rhs.repr);
 
     return (fix64_t){ (int64_t)result };
 }
@@ -139,8 +138,7 @@ static inline fix64_t fix64_div_sat(fix64_t lhs, fix64_t rhs) {
         lo = fix64_impl_sub_i128(hi, lo, 0, rhs.repr / 2, &hi);
     }
 
-    int64_t rem;
-    int64_t result = fix64_impl_div_i128_i64_sat(hi, lo, rhs.repr, &rem);
+    int64_t result = fix64_impl_div_i128_i64_sat(hi, lo, rhs.repr);
 
     return (fix64_t){ (int64_t)result };
 }

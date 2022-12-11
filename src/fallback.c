@@ -5,7 +5,7 @@
 
 #if !FIX64_IMPL_USE_NATIVE_DIVQ
 
-uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
+uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
 
     // This function is based on libdivide's libdivide_128_div_64_to_64
     // See: https://github.com/ridiculousfish/libdivide
@@ -74,19 +74,18 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint6
     dq_1 = -(rem > r_pos);    // r_neg > r_pos, but it's faster this way
     dq_2 = dq_1 & (-rem > v); // r_neg - r_pos > v
     q_est += dq_1 - dq_2;
-    rem += (v & dq_1) << dq_2;
+    // rem += (v & dq_1) << dq_2;
     uint32_t q_lo = (uint32_t)q_est;
 
-    *r = rem >> shift;
+    // r = rem >> shift;
     return ((uint64_t)q_hi << 32) | q_lo;
 }
 
-int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r) {
+int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v) {
     // unsigned variables
     uint64_t uu_hi = u_hi;
     uint64_t uu_lo = u_lo;
     uint64_t uv = v;
-    uint64_t ur;
 
     // u_sign = -(u < 0)
     uint64_t u_sign = u_hi >> 63;
@@ -101,15 +100,12 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t 
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
-    uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv, &ur);
+    uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv);
 
-    // branchless if (q_sign) negate result & ur
+    // branchless if (q_sign) negate result
     result ^= q_sign;
     result -= q_sign;
-    ur ^= u_sign;
-    ur -= u_sign;
 
-    *r = ur;
     return result;
 }
 

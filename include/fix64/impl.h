@@ -200,16 +200,16 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
 // implementation, but can be slower
 #if FIX64_IMPL_USE_NATIVE_DIVQ
 static inline uint64_t
-fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
+fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     if (FIX64_UNLIKELY(u_hi >= v)) {
         u_hi %= v;
     }
 
-    uint64_t q;
+    uint64_t q, r;
     // clang-format off
     __asm__ (
         "divq\t%[v]"
-        : "=a"(q), "=d"(*r) // quotient ends up in rax, remainder in rdx
+        : "=a"(q), "=d"(r) // quotient ends up in rax, remainder in rdx
         : [v]"r"(v), "d"(u_hi), "a"(u_lo) // dividend goes in rdx:rax
         : "flags" // divq leaves flags in an undefined state
     );
@@ -217,12 +217,11 @@ fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
     return q;
 }
 
-static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r) {
+static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v) {
     // unsigned variables
     uint64_t uu_hi = u_hi;
     uint64_t uu_lo = u_lo;
     uint64_t uv = v;
-    uint64_t ur;
 
     // u_sign = -(u < 0)
     uint64_t u_sign = u_hi >> 63;
@@ -237,31 +236,27 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
-    uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv, &ur);
+    uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv);
 
-    // branchless if (q_sign) negate result & ur
+    // branchless if (q_sign) negate result
     result ^= q_sign;
     result -= q_sign;
-    ur ^= u_sign;
-    ur -= u_sign;
 
-    *r = ur;
     return result;
 }
 #else
-uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r);
-int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r);
+uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v);
+int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v);
 #endif
 
-static inline uint64_t fix64_impl_div_u128_u64_sat(uint64_t u_hi, uint64_t u_lo, uint64_t v, uint64_t *r) {
+static inline uint64_t fix64_impl_div_u128_u64_sat(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     if (FIX64_UNLIKELY(u_hi >= v)) {
-        *r = UINT64_MAX;
         return UINT64_MAX;
     }
-    return fix64_impl_div_u128_u64(u_hi, u_lo, v, r);
+    return fix64_impl_div_u128_u64(u_hi, u_lo, v);
 }
 
-static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, int64_t v, int64_t *r) {
+static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, int64_t v) {
     // unsigned variables
     uint64_t uu_hi = u_hi;
     uint64_t uu_lo = u_lo;
@@ -283,7 +278,6 @@ static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, i
     // handle INT64_MIN as a special case, if u_hi == INT64_MIN (i.e. MSB is set) division will
     // always overflow
     if (FIX64_UNLIKELY(uu_hi >> 63)) {
-        *r = (u_sign) ? INT64_MIN : INT64_MAX;
         return (q_sign) ? INT64_MIN : INT64_MAX;
     }
 
@@ -296,7 +290,6 @@ static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, i
             // or u negative, v positive => q negative
             // u_min = -0x8000_0000 * v - (v - 1) => uu < 0x8000_0001 * uv
             if (FIX64_UNLIKELY(uu_lsh63 > uv || (uu_lsh63 == uv && (uu_lo << 1 >> 1) >= uv))) {
-                *r = INT64_MIN;
                 return INT64_MIN;
             }
         } else {
@@ -305,13 +298,12 @@ static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, i
             // or u, v both negative => q positive
             // u_min = 0x7fff_ffff * v - (-v - 1) => uu < 0x8000_0000 * uv
             if (FIX64_UNLIKELY(uu_lsh63 >= uv)) {
-                *r = INT64_MAX;
                 return INT64_MAX;
             }
         }
     }
 
-    return fix64_impl_div_i128_i64(u_hi, u_lo, v, r);
+    return fix64_impl_div_i128_i64(u_hi, u_lo, v);
 }
 
 #if FIX64_IMPL_USE_BUILTIN_CLZ

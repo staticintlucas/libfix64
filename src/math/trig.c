@@ -133,9 +133,8 @@ fix64_t fix64_tan(fix64_t angle) {
                 return FIX64_MAX;
             }
             // tan(x) = 1/tan(pi/2-x)
-            int64_t rem;
-            result = fix64_impl_div_i128_i64(
-                1ull << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS - 64), 0, result, &rem);
+            result = fix64_impl_div_i128_i64_sat(
+                1ull << (CHEBYSHEV_FRAC_BITS + FIX64_FRAC_BITS - 64), 0, result);
             break;
     }
 
