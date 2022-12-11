@@ -274,6 +274,8 @@ jobs:
         cmake -S. -Bbuild -DFIX64_WARNINGS_AS_ERRORS=1
       env:
         CC: clang
+        CFLAGS: -m32
+        LDFLAGS: -m32
 
     - name: Build library
       run: |
