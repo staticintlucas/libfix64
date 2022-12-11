@@ -243,3 +243,42 @@ jobs:
     - name: Build & run tests
       run: |
         ctest --test-dir build/tests --output-on-failure --parallel 4
+
+  test-32-bit:
+    name: Test 32-bit compatibility
+    runs-on: ubuntu-20.04 # 20.04 has the biggest range of supported compilers
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Setup Clang
+      uses: egor-tensin/setup-clang@v1
+      with:
+        platform: x86
+
+    - name: Check Clang version
+      run: |
+        clang --version
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1
+
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+
+    - name: Configure project
+      run: |
+        cmake -S. -Bbuild -DFIX64_WARNINGS_AS_ERRORS=1
+      env:
+        CC: clang
+
+    - name: Build library
+      run: |
+        cmake --build build --parallel
+
+    - name: Build & run tests
+      run: |
+        ctest --test-dir build/tests --output-on-failure --parallel 4
