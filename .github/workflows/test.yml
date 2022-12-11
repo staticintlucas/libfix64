@@ -280,6 +280,7 @@ jobs:
     - name: Build library
       run: |
         cmake --build build --parallel
+        objdump -f build/libfix64.a | grep "file format"
 
     - name: Build & run tests
       run: |
