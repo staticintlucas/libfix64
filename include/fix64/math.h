@@ -1,7 +1,6 @@
 #pragma once
 
 #include "fix64.h"
-#include "fix64/arith.h"
 
 //==========================================================
 // Basic math functions
@@ -86,7 +85,7 @@ static inline fix64_t fix64_min(fix64_t x, fix64_t y) {
 /// @param y the other fixed point number
 /// @return the absolute difference
 static inline fix64_t fix64_dim(fix64_t x, fix64_t y) {
-    return fix64_abs(fix64_sub_sat(x, y));
+    return fix64_max(fix64_sub_sat(x, y), FIX64_ZERO);
 }
 
 //==========================================================
