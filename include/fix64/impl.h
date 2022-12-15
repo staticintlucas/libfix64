@@ -199,8 +199,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
 // Don't try to implement division with __int128, it is at best as fast as our C/ASM combo fallback
 // implementation, but can be slower
 #if FIX64_IMPL_USE_NATIVE_DIVQ
-static inline uint64_t
-fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
+static inline uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     if (FIX64_UNLIKELY(u_hi >= v)) {
         u_hi %= v;
     }
