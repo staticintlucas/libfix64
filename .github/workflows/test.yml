@@ -3,6 +3,38 @@ name: Test
 on: [push, pull_request]
 
 jobs:
+  format-and-lint:
+    name: Check formatting and run linter
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1
+
+    - name: Install Python requirements
+      run: |
+        pip install -U pip
+        pip install -U -r requirements.txt
+
+    - name: Configure project
+      run: |
+        cmake -S. -Bbuild
+
+    - name: Build library
+      run: |
+        cmake --build build --parallel
+
+    - name: Setup Clang Format
+      run: |
+        apt-get install clang-format-13
+
+    - name: Run Clang Format
+      run: |
+        scripts/run-clang-format.py --clang-format-executable=clang-format-13 --style=file -r src/ include/ build/src/ build/include/
+
   test-python:
     name: Test Python Compatibility
     runs-on: ubuntu-latest
