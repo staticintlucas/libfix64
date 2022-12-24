@@ -14,7 +14,7 @@
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
     // Coefficients for the chebyshev series
 {% set coefs = chebyshev_coefs[func]() %}
-    static const int64_t chebyshev_coefs[{{coefs | length}}] = {
+    static const int64_t coefs[{{coefs | length}}] = {
         // clang-format off
 {% for coef in coefs %}
         {{const(coef, frac_bits=cheby_frac_bits, digits=16)}},
@@ -22,19 +22,12 @@ static int64_t chebyshev_{{func}}_impl(int64_t value) {
         // clang-format on
     };
 
-    int64_t val_pow[{{coefs | length}}];
-    val_pow[0] = INT64_C(1) << CHEBYSHEV_FRAC_BITS;
-    for (size_t i = 1; i < sizeof(val_pow) / sizeof(val_pow[0]); i++) {
+    int64_t sum = coefs[sizeof(coefs) / sizeof(coefs[0]) - 1]; // Q1.62
+    for (size_t i = sizeof(coefs) / sizeof(coefs[0]) - 1; i-- > 0;) {
         int64_t hi;
-        uint64_t lo = fix64_impl_mul_i64_i128(val_pow[i - 1], value, &hi);
-        val_pow[i] = (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS);
-    }
-
-    int64_t sum = 0;
-    for (size_t i = 0; i < sizeof(chebyshev_coefs) / sizeof(chebyshev_coefs[0]); i++) {
-        int64_t hi;
-        uint64_t lo = fix64_impl_mul_i64_i128(val_pow[i], chebyshev_coefs[i], &hi);
-        sum += (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS);
+        uint64_t lo = fix64_impl_mul_i64_i128(sum, value, &hi); // Q3.124
+        sum = (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS); // Q1.62
+        sum += coefs[i]; // Q1.62
     }
 
     return sum; // Q1.62
