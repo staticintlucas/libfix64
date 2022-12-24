@@ -9,8 +9,8 @@
 
 // Calculates 2**x-1 for UQ0.64 fixed point numbers
 static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
-    uint64_t sum = exp2m1_coefs[sizeof(exp2m1_coefs) / sizeof(exp2m1_coefs[0]) - 1]; // UQ0.64
-    for (size_t i = sizeof(exp2m1_coefs) / sizeof(exp2m1_coefs[0]) - 1; i-- > 0;) {
+    uint64_t sum = exp2m1_coefs[0]; // UQ0.64
+    for (size_t i = 1; i < sizeof(exp2m1_coefs) / sizeof(exp2m1_coefs[0]); i++) {
         // Note: assumes EXP_FRAC_BITS == 64
         fix64_impl_mul_u64_u128(sum, arg, &sum); // UQ0.128 => take upper half for UQ0.64
         sum += exp2m1_coefs[i]; // UQ0.64

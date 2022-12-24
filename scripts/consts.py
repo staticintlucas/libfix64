@@ -41,6 +41,6 @@ def chebyshev_coefs(func, n_coef):
             for i in range(len(coef)):
                 coef[i] += an[n] * cheby_poly[n][i]
 
-        return coef
+        return coef[::-1] # reverse to make C implementation slightly simpler
 
     return impl

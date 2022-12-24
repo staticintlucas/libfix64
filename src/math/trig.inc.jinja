@@ -22,8 +22,8 @@ static int64_t chebyshev_{{func}}_impl(int64_t value) {
         // clang-format on
     };
 
-    int64_t sum = coefs[sizeof(coefs) / sizeof(coefs[0]) - 1]; // Q1.62
-    for (size_t i = sizeof(coefs) / sizeof(coefs[0]) - 1; i-- > 0;) {
+    int64_t sum = coefs[0]; // Q1.62
+    for (size_t i = 1; i < sizeof(coefs) / sizeof(coefs[0]); i++) {
         int64_t hi;
         uint64_t lo = fix64_impl_mul_i64_i128(sum, value, &hi); // Q3.124
         sum = (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS); // Q1.62
