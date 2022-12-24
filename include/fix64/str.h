@@ -10,9 +10,9 @@
 
 /// Enum of the possible bases used for formatting fix64_t numbers
 enum {
-    FIX64_BASE_DECIMAL,     ///< Format as a decimal number
-    FIX64_BASE_BINARY,      ///< Format as a binary number
-    FIX64_BASE_OCTAL,       ///< Format as an octal number
+    FIX64_BASE_DECIMAL, ///< Format as a decimal number
+    FIX64_BASE_BINARY, ///< Format as a binary number
+    FIX64_BASE_OCTAL, ///< Format as an octal number
     FIX64_BASE_HEXADECIMAL, ///< Format as a hexadecimal number
 };
 

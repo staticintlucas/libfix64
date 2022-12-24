@@ -54,7 +54,7 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     // see: https://ridiculousfish.com/blog/posts/labor-of-division-episode-vi.html
 
     // correct q_est and rem
-    uint64_t dq_1 = -(rem > r_pos);    // r_neg > r_pos, but it's faster this way
+    uint64_t dq_1 = -(rem > r_pos); // r_neg > r_pos, but it's faster this way
     uint64_t dq_2 = dq_1 & (-rem > v); // r_neg - r_pos > v
     q_est += dq_1 - dq_2;
     rem += (v & dq_1) << dq_2;
@@ -71,7 +71,7 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     rem = r_pos - r_neg;
 
     // correct q_est and rem
-    dq_1 = -(rem > r_pos);    // r_neg > r_pos, but it's faster this way
+    dq_1 = -(rem > r_pos); // r_neg > r_pos, but it's faster this way
     dq_2 = dq_1 & (-rem > v); // r_neg - r_pos > v
     q_est += dq_1 - dq_2;
     // rem += (v & dq_1) << dq_2;
@@ -96,7 +96,7 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v) {
     uu_hi ^= u_sign;
 
     uint64_t v_sign = v >> 63; // = -(v < 0)
-    uv = (v_sign) ? -uv : uv;  // = labs(v);
+    uv = (v_sign) ? -uv : uv; // = labs(v);
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 

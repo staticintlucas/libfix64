@@ -187,7 +187,7 @@ static char *fmt_frac_2(char *buf, uint64_t repr, unsigned prec) {
 
 size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t fmt) {
 
-    char tmp_buf[256];   // number is formatted here, max width = 255 + 1 for the nul
+    char tmp_buf[256]; // number is formatted here, max width = 255 + 1 for the nul
     char *end = tmp_buf; // points to end of buf
 
     uint64_t repr = val.repr;
@@ -205,7 +205,7 @@ size_t fix64_to_str_fmt(char *buf, fix64_t val, size_t size, fix64_fmt_param_t f
     }
 
     char num_buf[72]; // For binary formatting, 64 bits + '.' + alignment
-    char *num_end;    // points to end of num_buf
+    char *num_end; // points to end of num_buf
     if (fmt.base == FIX64_BASE_DECIMAL) {
         num_end = fmt_frac_10(num_buf, repr, prec);
     } else if (fmt.base == FIX64_BASE_HEXADECIMAL) {

@@ -136,7 +136,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
     *hi = res >> 64;
     return res;
 }
-#else  // if !FIX64_IMPL_USE_INT128
+#else // if !FIX64_IMPL_USE_INT128
 static inline uint64_t
 fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
     uint64_t lo;
@@ -231,7 +231,7 @@ static inline int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64
     uu_hi ^= u_sign;
 
     uint64_t v_sign = v >> 63; // = -(v < 0)
-    uv = (v_sign) ? -uv : uv;  // = labs(v);
+    uv = (v_sign) ? -uv : uv; // = labs(v);
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
@@ -270,7 +270,7 @@ static inline int64_t fix64_impl_div_i128_i64_sat(int64_t u_hi, uint64_t u_lo, i
     uu_hi ^= u_sign;
 
     uint64_t v_sign = v >> 63; // = -(v < 0)
-    uv = (v_sign) ? -uv : uv;  // = labs(v);
+    uv = (v_sign) ? -uv : uv; // = labs(v);
 
     uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
 
