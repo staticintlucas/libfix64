@@ -20,29 +20,26 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
 }
 
 // Calculates log2(1+x) for UQ0.64 fixed point numbers
-// Based on Clay Turner's paper: http://www.claysturner.com/dsp/BinaryLogarithm.pdf
-static uint64_t turner_log21p_impl(uint64_t arg) {
-    uint64_t result = 0;
-    for (size_t i = 0; i < (FIX64_FRAC_BITS + 1); i++) {
+// Originally based on Clay Turner's paper: http://www.claysturner.com/dsp/BinaryLogarithm.pdf
+// Modified so that 4 bits are set per iteration and eliminating the if/else branch
+// Makes use of a clz to replace repeated if (x > 2**n)
+static uint64_t fast_log21p_impl(uint64_t arg) {
+    uint64_t y = 0;
+    uint64_t x = UINT64_C(1) << 63 | (arg >> 1); // UQ1.63
+    static const size_t n_iter = FIX64_FRAC_BITS / 4 + 1;
+    for (size_t i = 0; i < n_iter; i++) {
         // (1+x)**2 - 1 == 2*x + x**2 == (x << 1) + (x * x)
         // Note: arg_shr64 assumes EXP_FRAC_BITS == 64
-        uint64_t arg_shr64;
-        fix64_impl_mul_u64_u128(arg, arg, &arg_shr64);
-        uint64_t arg_hi;
-        uint64_t arg_lo =
-            fix64_impl_add_u128(arg >> 63, arg << 1, 0, arg_shr64, &arg_hi); // UQ64.64
+        fix64_impl_mul_u64_u128(x, x, &x); // UQ2.126 => upper half is UQ2.62
+        fix64_impl_mul_u64_u128(x, x, &x); // UQ4.124 => upper half is UQ4.60
+        fix64_impl_mul_u64_u128(x, x, &x); // UQ8.120 => upper half is UQ8.54
+        fix64_impl_mul_u64_u128(x, x, &x); // UQ16.112 => upper half is UQ16.48
 
-        result <<= 1;
-        if (arg_hi) { // i.e. if (arg_hi:arg_lo >= 1.0) // Note: assumes EXP_FRAC_BITS == 64
-            // arg+1 = (arg+1)/2 => arg = (arg-1)/2
-            // Note: assumes EXP_FRAC_BITS == 64
-            arg = ((arg_hi - 1) << 63) | (arg_lo >> 1);
-            result |= 1;
-        } else {
-            arg = arg_lo;
-        }
+        unsigned lz = fix64_impl_clz64(x);
+        x <<= lz;
+        y = (y << 4) | (16 - lz - 1);
     }
-    return result << (EXP_FRAC_BITS - (FIX64_FRAC_BITS + 1));
+    return y << (EXP_FRAC_BITS - (4 * n_iter));
 }
 
 static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
@@ -133,7 +130,7 @@ fix64_t fix64_log2(fix64_t arg) {
 
     // Note: assumes EXP_FRAC_BITS == 64
     int64_t result_hi = FIX64_INT_BITS - lz;
-    uint64_t result_lo = turner_log21p_impl(fpart); // Q31.64
+    uint64_t result_lo = fast_log21p_impl(fpart); // Q31.64
 
     uint32_t round_shift = EXP_FRAC_BITS - FIX64_FRAC_BITS;
     result_lo = fix64_impl_add_i128(
