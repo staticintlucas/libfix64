@@ -21,15 +21,14 @@ uint64_t fix64_impl_div_u128_u64(uint64_t u_hi, uint64_t u_lo, uint64_t v) {
     // normalise divisor and dividend
     uint32_t shift = fix64_impl_clz64(v); // shift for normalization
 
-    // if (shift) performs better than the bit manip done by libdivide to avoid UB of u_lo >> 64
-    // when shift == 0. Implementation is ~20% faster on AMD (Zen1) and ~5% on Intel (Skylake)
-    if (shift) {
-        // shift v by the number of leading 0's
-        v <<= shift;
-        // shift u by the same amount - this won't overflow since we know u_hi < v
-        u_hi = (u_hi << shift) | (u_lo >> (64 - shift));
-        u_lo <<= shift;
-    }
+    // shift v by the number of leading 0's
+    v <<= shift;
+    // shift u by the same amount - this won't overflow since we know u_hi < v
+    // Check shift != 0 to avoid UB of u_lo >> 64. On ARM (where this code mainly ends up running)
+    // this is optimised out anyway since lsr's result is 0 for shifts > 64. This performs better
+    // than the bit manip done by libdivide which certain compilers struggle to optimise out
+    u_hi = (shift) ? ((u_hi << shift) | (u_lo >> (64 - shift))) : u_hi;
+    u_lo <<= shift;
 
     // lower digits of the normalised dividend
     uint32_t nu_hi = (uint32_t)(u_lo >> 32);
@@ -89,7 +88,6 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v) {
 
     // u_sign = -(u < 0)
     uint64_t u_sign = u_hi >> 63;
-
     // uu_hi:uu_lo = abs(u_hi:u_lo)
     uu_lo = fix64_impl_add_u128(uu_hi, uu_lo, u_sign, u_sign, &uu_hi);
     uu_lo ^= u_sign;
@@ -98,13 +96,10 @@ int64_t fix64_impl_div_i128_i64(int64_t u_hi, uint64_t u_lo, int64_t v) {
     uint64_t v_sign = v >> 63; // = -(v < 0)
     uv = (v_sign) ? -uv : uv; // = labs(v);
 
-    uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
-
     uint64_t result = fix64_impl_div_u128_u64(uu_hi, uu_lo, uv);
 
-    // branchless if (q_sign) negate result
-    result ^= q_sign;
-    result -= q_sign;
+    uint64_t q_sign = u_sign ^ v_sign; // sign of the quotient
+    result = (q_sign) ? -result : result;
 
     return result;
 }
