@@ -26,8 +26,8 @@ static uint64_t chebyshev_exp2m1_impl(uint64_t arg) {
 static uint64_t fast_log21p_impl(uint64_t arg) {
     uint64_t y = 0;
     uint64_t x = UINT64_C(1) << 63 | (arg >> 1); // UQ1.63
-    static const size_t n_iter = FIX64_FRAC_BITS / 4 + 1;
-    for (size_t i = 0; i < n_iter; i++) {
+    size_t n;
+    for (n = 0; n < FIX64_FRAC_BITS; n += 4) {
         // (1+x)**2 - 1 == 2*x + x**2 == (x << 1) + (x * x)
         // Note: arg_shr64 assumes EXP_FRAC_BITS == 64
         fix64_impl_mul_u64_u128(x, x, &x); // UQ2.126 => upper half is UQ2.62
@@ -39,7 +39,10 @@ static uint64_t fast_log21p_impl(uint64_t arg) {
         x <<= lz;
         y = (y << 4) | (16 - lz - 1);
     }
-    return y << (EXP_FRAC_BITS - (4 * n_iter));
+    // this means x^2 will be >= 2; gives us an extra bit without iterating again
+    // use > since log2_sqrt21p_val is rounded down, i.e. log2_sqrt21p_val^2 = 1.999...
+    uint64_t extra_bit = (x > log2_sqrt21p_val);
+    return y << (EXP_FRAC_BITS - n) | extra_bit << (EXP_FRAC_BITS - n - 1);
 }
 
 static fix64_t fix64_exp2_inner(int64_t ipart, uint64_t fpart) {
