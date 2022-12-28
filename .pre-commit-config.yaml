@@ -1,0 +1,46 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.3.0
+  hooks:
+  - id: check-added-large-files
+  - id: check-yaml
+  - id: end-of-file-fixer
+  - id: fix-byte-order-marker
+  - id: mixed-line-ending
+    args: [--fix=lf]
+  - id: trailing-whitespace
+- repo: local
+  hooks:
+  - id: configure
+    name: configure project
+    entry: cmake
+    args: [-S, '.', -B, .tmp-pre-commit-build-dir]
+    language: system
+    types: [c]
+    pass_filenames: false
+  - id: build
+    name: build project
+    entry: cmake
+    args: [--build, .tmp-pre-commit-build-dir, --parallel]
+    language: system
+    types: [c]
+    pass_filenames: false
+  - id: format
+    name: run tests
+    entry: ctest
+    args: [--test-dir, .tmp-pre-commit-build-dir/tests, --output-on-failure, --parallel=8]
+    language: system
+    types: [c]
+    pass_filenames: false
+  - id: format
+    name: run clang-format
+    entry: scripts/run-clang-format.py
+    args: [--clang-format-executable=clang-format, --style=file]
+    language: script
+    types: [c]
+    exclude: ^tests/
+  - id: clean-up
+    name: clean up build artefacts
+    entry: rm -rf .tmp-pre-commit-build-dir
+    language: system
+    pass_filenames: false
