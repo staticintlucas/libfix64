@@ -266,7 +266,7 @@ jobs:
 
     - name: Configure project
       run: |
-        cmake -S. -Bbuild -DFIX64_WARNINGS_AS_ERRORS=1
+        cmake -S. -Bbuild -DFIX64_WARNINGS_AS_ERRORS=1 -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 
     - name: Build library
       run: |
