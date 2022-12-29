@@ -41,9 +41,9 @@ _plt.title("error for $tan(\pi x/4)$")
 _plt.xlabel("$x$")
 _plt.ylabel("$e$")
 
-func = lambda x: _mp.power(2, x) - 1
+func = lambda x: _mp.powm1(2, x)
 coefs = ARGS["chebyshev_coefs"]["exp2m1"]()[::-1]
-xpoints = _np.linspace(-1, 1, 1000, dtype=_mpf)
+xpoints = _np.linspace(0, 1, 1000, dtype=_mpf)
 ypoints = _poly.polyval(xpoints, coefs) - _np.vectorize(func)(xpoints)
 
 _plt.subplot(224)
@@ -52,4 +52,5 @@ _plt.title("error for $2^x-1$")
 _plt.xlabel("$x$")
 _plt.ylabel("$e$")
 
+_plt.tight_layout()
 _plt.show()
