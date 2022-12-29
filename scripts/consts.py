@@ -1,4 +1,7 @@
 from mpmath import mp as _mp, mpf as _mpf
+import numpy as _np
+from numpy.polynomial.chebyshev import cheb2poly as _cheb2poly
+from numpy.polynomial import Chebyshev as _Cheby
 
 _mp.prec = 256
 
@@ -24,23 +27,17 @@ sqrt1_2 = sqrt2 / 2
 def chebyshev_coefs(func, n_coef):
 
     def impl():
-        cheby_poly = [
-            [1] + [0] * (n_coef - 1),
-            [0, 1] + [0] * (n_coef - 2),
-        ]
-        for _ in range(len(cheby_poly), n_coef):
-            cheby_poly.append([2 * a - b for a, b in zip([0, *cheby_poly[-1]], cheby_poly[-2])])
+        mpcos = _np.vectorize(_mp.cos)
+        vfunc = _np.vectorize(func)
 
-        xk = [_mp.cos(pi * (k + half) / n_coef) for k in range(n_coef)]
-        an = [((two - int(n == 0)) / n_coef) *
-            sum(_mp.cos(n * pi * (k + half) / n_coef) * func(xk[k]) for k in range(n_coef))
-                for n in range(len(cheby_poly))]
+        N = _mpf(n_coef)
+        k = _np.arange(N, dtype=_mpf)
+        n = _np.arange(N, dtype=_mpf)
 
-        coef = [_mp.zero] * n_coef
-        for n in range(len(cheby_poly)):
-            for i in range(len(coef)):
-                coef[i] += an[n] * cheby_poly[n][i]
+        xk = mpcos(pi * (k + half) / N)
+        an = (((two - (n == 0)) / N) *
+            _np.sum(mpcos(_np.outer(n * pi, k + half) / N) * vfunc(xk), axis=1))
 
-        return coef[::-1] # reverse to make C implementation slightly simpler
+        return _cheb2poly(an)[::-1] # reverse to make C implementation slightly simpler
 
     return impl
