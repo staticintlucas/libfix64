@@ -21,10 +21,18 @@ c_2_sqrtpi = 2 / _mp.sqrt(pi)
 sqrt2 = _mp.sqrt(2)
 sqrt1_2 = sqrt2 / 2
 
-def chebyshev_coefs(func, n_coef):
+def chebyshev_coefs(func, tol):
 
     def impl():
-        an = _mp.chebyfit(func, [-1, 1], n_coef)
+        N = 6
+        maxerr = _mp.inf
+
+        while maxerr > tol:
+            an, maxerr = _mp.chebyfit(func, [-1, 1], N, error=True)
+            N += 1
+
+        print("Using", len(an), "polynomial terms for", func)
+
         return an # reverse to make C implementation slightly simpler
 
     return impl
