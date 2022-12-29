@@ -10,7 +10,7 @@
 #define EXP_FRAC_BITS {{exp_frac_bits}}
 #define MUL_FRAC_BITS {{mul_frac_bits}}
 
-{% set coefs = chebyshev_coefs["exp2m1"]() %}
+{% set coefs = poly.exp2m1.coefs() %}
 static const uint64_t exp2m1_coefs[{{coefs | length}}] = {
     // clang-format off
 {% for coef in coefs %}

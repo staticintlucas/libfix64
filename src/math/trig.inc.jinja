@@ -13,7 +13,7 @@
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
     // Coefficients for the chebyshev series
-{% set coefs = chebyshev_coefs[func]() %}
+{% set coefs = poly[func].coefs() %}
     static const int64_t coefs[{{coefs | length}}] = {
         // clang-format off
 {% for coef in coefs %}

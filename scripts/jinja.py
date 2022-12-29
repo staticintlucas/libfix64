@@ -51,11 +51,11 @@ ARGS = {
         "double":      { "short": "dbl",  "suffix": "" },
         "long double": { "short": "ldbl", "suffix": "l" },
     },
-    "chebyshev_coefs": {
-        "sin": consts.chebyshev_coefs(lambda a: _mp.sin(a*consts.pi_4), (-1, 1), 2**-40),
-        "cos": consts.chebyshev_coefs(lambda a: _mp.cos(a*consts.pi_4), (-1, 1), 2**-40),
-        "tan": consts.chebyshev_coefs(lambda a: _mp.tan(a*consts.pi_4), (-1, 1), 2**-48),
-        "exp2m1": consts.chebyshev_coefs(lambda x: _mp.powm1(2, x), (0, 1), 2**-48),
+    "poly": {
+        "sin": consts.Poly("sin(\pi x/4)", lambda a: _mp.sin(a*consts.pi_4), (-1, 1), 2**-40),
+        "cos": consts.Poly("cos(\pi x/4)", lambda a: _mp.cos(a*consts.pi_4), (-1, 1), 2**-40),
+        "tan": consts.Poly("tan(\pi x/4)", lambda a: _mp.tan(a*consts.pi_4), (-1, 1), 2**-48),
+        "exp2m1": consts.Poly("2^x-1", lambda x: _mp.powm1(2, x), (0, 1), 2**-48),
     },
     "digit_coefs": [
         (len(str(1 << i)), max((1 << 32) - (10 ** len(str(1 << i))), 0))
