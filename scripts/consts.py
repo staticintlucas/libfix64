@@ -1,6 +1,6 @@
 from mpmath import mp as _mp, mpf as _mpf
 
-_mp.prec = 256
+_mp.prec = 128
 
 zero = _mp.zero
 one = _mp.one
@@ -41,12 +41,15 @@ class Poly:
 
             x = _mp.linspace(*ival, 11)
             y = [func(xi) for xi in x]
+            i = y.index(max(y)) # find index of max
+            ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
+
             # While there is still a big enough difference between min and max
             while max(y) - min(y) > _mp.power(2, -0.75*_mp.prec):
-                i = y.index(max(y)) # find index of max
-                ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
                 x = _mp.linspace(*ival, 11)
                 y = [func(xi) for xi in x]
+                i = y.index(max(y)) # find index of max
+                ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
 
             # return x-coord
             return x[i]
