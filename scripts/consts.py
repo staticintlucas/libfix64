@@ -73,8 +73,7 @@ class Poly:
 
         # solve vandermonde * [c0, c1, ..., cn, e] = yvec
         ans = _mp.lu_solve(vandermonde, yvec)
-
-        poly = _sp.Poly(ans[:-1:-1], _x) # new polynomial
+        poly = _sp.Poly(ans[:-1][::-1], _x) # new polynomial
         esterr = ans[-1] # error term
         return poly, esterr
 
