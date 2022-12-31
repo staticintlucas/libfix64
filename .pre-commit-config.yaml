@@ -16,14 +16,14 @@ repos:
     entry: cmake
     args: [-S, '.', -B, .tmp-pre-commit-build-dir]
     language: system
-    types: [c]
+    types_or: [c, python] # Also test build when python scripts are modified
     pass_filenames: false
   - id: build
     name: build project
     entry: cmake
     args: [--build, .tmp-pre-commit-build-dir, --parallel]
     language: system
-    types: [c]
+    types_or: [c, python] # Also test build when python scripts are modified
     pass_filenames: false
   - id: format
     name: run tests
