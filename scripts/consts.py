@@ -1,115 +1,90 @@
-from mpmath import mp as _mp, mpf as _mpf
+from mpmath import mp as _mp
+import sympy as _sp
+from sympy.abc import x as _x
 
 _mp.prec = 128
 
-zero = _mp.zero
-one = _mp.one
-two = _mpf(2)
-half = _mp.one / 2
+zero = _sp.S(0)
+one = _sp.S(1)
+two = _sp.S(2)
+half = one / two
 
-pi = _mp.pi
-e = _mp.e
-log2e = 1 / _mp.ln(2)
-log10e = _mp.log10(e)
-ln2 = _mp.ln2
-ln10 = _mp.ln10
+pi = _sp.pi
+e = _sp.E
+log2e = _sp.log(e, 2)
+log10e = _sp.log(e, 10)
+ln2 = _sp.log(2)
+ln10 = _sp.log(10)
 pi_2 = pi / 2
 pi_4 = pi / 4
 c_1_pi = 1 / pi
 c_2_pi = 2 / pi
-c_2_sqrtpi = 2 / _mp.sqrt(pi)
-sqrt2 = _mp.sqrt(2)
-sqrt1_2 = sqrt2 / 2
+c_2_sqrtpi = 2 / _sp.sqrt(pi)
+sqrt2 = _sp.sqrt(2)
+sqrt1_2 = 1 / sqrt2
 
 class Poly:
-    def __init__(self, name, func, ival, tol):
-        self.name = name
+    def __init__(self, func, ival, tol):
+        self.name = str(func)
         self.func = func
         self.ival = ival
         self.tol = tol
 
     @staticmethod
-    def _extrema(func, ival):
+    def _extrema(efunc, ival):
         # returns the x-coords of the extrema of the polynomial's error
 
-        def maximum(func, ival, neg=False):
-            # Calculate the x-coord of a local maximum known to sit inside ival,
-            # or a minimum if neg is True
-            if neg:
-                old = func
-                func = lambda x: -old(x)
+        def approx_roots(ldefunc, ival):
+            # Finds the approximate roots by interpolating the function at 1000 points
+            x = _mp.linspace(*ival, 1001)
+            y = (ldefunc(xi) for xi in x)
 
-            x = _mp.linspace(*ival, 11)
-            y = [func(xi) for xi in x]
-            i = y.index(max(y)) # find index of max
-            ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
-
-            # While there is still a big enough difference between min and max
-            while max(y) - min(y) > _mp.power(2, -0.75*_mp.prec):
-                x = _mp.linspace(*ival, 11)
-                y = [func(xi) for xi in x]
-                i = y.index(max(y)) # find index of max
-                ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
-
-            # return x-coord
-            return x[i]
-
-        def approx_extr(func, ival, pts):
-            # Finds the approximate extrema by interpolating the function at pts points
-            x = _mp.linspace(*ival, pts+1)
-            y = [func(xi) for xi in x]
-
-            dy = [y1 - y0 for y0, y1 in zip(y, y[1:])] # the difference between successive y points
-            dyneg = [dyi < 0 for dyi in dy] # find where difference is negative
+            yneg = [yi < 0 for yi in y] # find where difference is negative
             # find where difference swaps from pos->neg and vice versa
-            cross = [dy0 != dy1 for dy0, dy1 in zip(dyneg, dyneg[1:])]
-            idx = [i for i, x in enumerate(cross) if x] # find indeces of the crossings
+            cross = (dy0 != dy1 for dy0, dy1 in zip(yneg, yneg[1:]))
+            idx = list(i for i, x in enumerate(cross) if x) # find indeces of the crossings
+            return (_sp.S(x[i]) for i in idx) # return the x-coords
 
-            return [x[i] for i in idx] # return the x-coords
-
-        pts = 1000
-        dx = 2 * (ival[1] - ival[0]) / pts # delta between points
-        approx = approx_extr(func, ival, pts) # find approx extrema
-        ivals = [(a - dx, a + dx) for a in approx] # pairs of intervals where these extrema exist
-        neg = [func(a) < func(a - dx) for a in approx] # whether these are minima or maxima
-        return (maximum(func, ival, n) for ival, n in zip(ivals, neg)) # return more exact values
+        defunc = _sp.diff(efunc, _x)
+        ldefunc = _sp.lambdify(_x, defunc, modules="mpmath")
+        approx = list(approx_roots(ldefunc, ival)) # find approx extrema
+        return (_sp.nsolve(defunc, _x, a, solver="mnewton") for a in approx) # return exact extrema
 
     @staticmethod
-    def _remez(func, coefs, ival):
-        efunc = lambda x: _mp.polyval(coefs, x) - func(x)
-        extrema = _mp.matrix([ival[0], *Poly._extrema(efunc, ival), ival[1]])
+    def _remez(func, poly, ival):
+        efunc = poly.as_expr() - func
+        extrema = [ival[0], *Poly._extrema(efunc, ival), ival[1]]
 
-        N = len(coefs) - 1
+        N = poly.degree()
         # for some functions (e.g. sin) we get an extra extreme due to the curvature of sin itself
         extrema = extrema[:N+2]
-        esign = -1 if efunc(extrema[0]) < efunc(extrema[1]) else 1 # if the first error term is negative
+        # sign of the first error term
+        lefunc = _sp.lambdify(_x, efunc, modules="mpmath")
+        esign = -1 if lefunc(extrema[0]) < lefunc(extrema[1]) else 1
 
         # populate the vandermonde matrix
         # see: https://2π.com/22/approximation/
-        vandermonde = []
-        for i in range(N + 2):
-            vandermonde.append([
-                *(extrema[i]**j for j in range(N, -1, -1)),
-                esign
-            ])
-            esign = -esign
-        vandermonde = _mp.matrix(vandermonde)
+        vandermonde = _sp.Matrix(N + 2, N + 1, lambda i, j: extrema[i] ** j)
+        vandermonde = vandermonde.row_join(_sp.Matrix([esign * (-1)**n for n in range(N + 2)]))
 
         # vector of y coordinates
-        yvec = _mp.matrix([func(x) for x in extrema])
+        lfunc = _sp.lambdify(_x, func, modules="mpmath")
+        yvec = _sp.Matrix([lfunc(x) for x in extrema])
 
         # solve vandermonde * [c0, c1, ..., cn, e] = yvec
         ans = _mp.lu_solve(vandermonde, yvec)
 
-        coefs = ans[:-1] # new coefficients
+        poly = _sp.Poly(ans[:-1:-1], _x) # new polynomial
         esterr = ans[-1] # error term
-        return coefs, esterr
+        return poly, esterr
 
-    def coefs(self):
+    def poly(self):
         # give up if a 100th degree polynomial is still not enough
         for N in range(6, 1000):
             # Calculate chebyshev polynomial
-            an, chebyerr = _mp.chebyfit(self.func, self.ival, N, error=True)
+            lfunc = _sp.lambdify(_x, self.func, modules="mpmath")
+            an, chebyerr = _mp.chebyfit(lfunc, self.ival, N, error=True)
+            poly = _sp.Poly(an, _x)
 
             # Remez gives at best a ~2.2x improvement, so we only try to improve our chebyshev
             #  polynomial if we're off by less than 2.5. This avoids the additional runtime since
@@ -120,14 +95,17 @@ class Poly:
                 # 5 iterations of Remez already gives near-optimal results
                 # TODO should we have a better stop condition?
                 for j in range(5):
-                    an, _remezerr = Poly._remez(self.func, an, self.ival)
-                    efunc = lambda x: _mp.polyval(an, x) - self.func(x)
-                    err = max(abs(efunc(x)) for x in Poly._extrema(efunc, self.ival))
+                    poly, _remezerr = Poly._remez(self.func, poly, self.ival)
+                    efunc = poly.as_expr() - self.func
+                    lefunc = _sp.lambdify(_x, efunc, modules="mpmath")
+                    err = max(_mp.fabs(lefunc(x)) for x in Poly._extrema(efunc, self.ival))
 
                 print(f"{self.name}: Remez algorithm ({j+1} iters); e_max = {_mp.nstr(err, strip_zeros=False)}",
                     f"({_mp.nstr(chebyerr/err, strip_zeros=False)}x smaller)")
 
                 # If the error from Remez is good enough break and return
                 if err < self.tol:
-                    break
-        return an
+                    return poly
+
+    def coefs(self):
+        return self.poly().all_coeffs()

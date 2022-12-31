@@ -5,10 +5,12 @@ import consts
 import sys
 from pathlib import Path
 import jinja2 as _jinja2
+import sympy as _sp
+from sympy.abc import x as _x
 from mpmath import mp as _mp
 
 def const(value, base="x", frac_bits=32, digits=1):
-    repr = int(_mp.nint(value * (1 << frac_bits)))
+    repr = int(_mp.nint((value * (1 << frac_bits)).evalf()))
     base = base.lower()
     if base not in "dx":
         raise ValueError("Unsupported base")
@@ -52,10 +54,10 @@ ARGS = {
         "long double": { "short": "ldbl", "suffix": "l" },
     },
     "poly": {
-        "sin": consts.Poly("sin(\pi x/4)", lambda a: _mp.sin(a*consts.pi_4), (-1, 1), 2**-40),
-        "cos": consts.Poly("cos(\pi x/4)", lambda a: _mp.cos(a*consts.pi_4), (-1, 1), 2**-40),
-        "tan": consts.Poly("tan(\pi x/4)", lambda a: _mp.tan(a*consts.pi_4), (-1, 1), 2**-48),
-        "exp2m1": consts.Poly("2^x-1", lambda x: _mp.powm1(2, x), (0, 1), 2**-48),
+        "sin": consts.Poly(_sp.sin(_x * _sp.pi / 4), (-1, 1), 2**-40),
+        "cos": consts.Poly(_sp.cos(_x * _sp.pi / 4), (-1, 1), 2**-40),
+        "tan": consts.Poly(_sp.tan(_x * _sp.pi / 4), (-1, 1), 2**-48),
+        "exp2m1": consts.Poly(2**_x - 1, (0, 1), 2**-48),
     },
     "digit_coefs": [
         (len(str(1 << i)), max((1 << 32) - (10 ** len(str(1 << i))), 0))
