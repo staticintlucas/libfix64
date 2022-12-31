@@ -1,5 +1,7 @@
-from mpmath import mp as _mp, mpf as _mpf
+import gmpy2 as _
+from mpmath import mp as _mp, mpf as _mpf, libmp as _libmp
 
+assert _libmp.BACKEND == "gmpy"
 _mp.prec = 128
 
 zero = _mp.zero
