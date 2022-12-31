@@ -34,28 +34,6 @@ class Poly:
     def _extrema(func, ival):
         # returns the x-coords of the extrema of the polynomial's error
 
-        def maximum(func, ival, neg=False):
-            # Calculate the x-coord of a local maximum known to sit inside ival,
-            # or a minimum if neg is True
-            if neg:
-                old = func
-                func = lambda x: -old(x)
-
-            x = _mp.linspace(*ival, 11)
-            y = [func(xi) for xi in x]
-            i = y.index(max(y)) # find index of max
-            ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
-
-            # While there is still a big enough difference between min and max
-            while max(y) - min(y) > _mp.power(2, -0.75*_mp.prec):
-                x = _mp.linspace(*ival, 11)
-                y = [func(xi) for xi in x]
-                i = y.index(max(y)) # find index of max
-                ival = (x[i-1], x[i+1]) # interval for next iter is between prev and next points
-
-            # return x-coord
-            return x[i]
-
         def approx_extr(func, ival, pts):
             # Finds the approximate extrema by interpolating the function at pts points
             x = _mp.linspace(*ival, pts+1)
@@ -72,9 +50,10 @@ class Poly:
         pts = 1000
         dx = 2 * (ival[1] - ival[0]) / pts # delta between points
         approx = approx_extr(func, ival, pts) # find approx extrema
-        ivals = [(a - dx, a + dx) for a in approx] # pairs of intervals where these extrema exist
-        neg = [func(a) < func(a - dx) for a in approx] # whether these are minima or maxima
-        return (maximum(func, ival, n) for ival, n in zip(ivals, neg)) # return more exact values
+
+        dfunc = lambda x: _mp.diff(func, x) # differentiate function
+        solver = "pegasus" # seems to give correct roots at the best speed
+        return (_mp.findroot(dfunc, (a-dx, a+dx), solver) for a in approx)
 
     @staticmethod
     def _remez(func, coefs, ival):
