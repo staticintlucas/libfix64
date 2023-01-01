@@ -52,8 +52,8 @@ ARGS = {
         "long double": { "short": "ldbl", "suffix": "l" },
     },
     "poly": {
-        "sin": consts.Poly("sin(\pi x/4)", lambda a: _mp.sin(a*consts.pi_4), (-1, 1), 2**-40),
-        "cos": consts.Poly("cos(\pi x/4)", lambda a: _mp.cos(a*consts.pi_4), (-1, 1), 2**-40),
+        "sin": consts.Poly("sin(\pi x/4)", lambda a: _mp.sin(a*consts.pi_4), (0, 1), 2**-40),
+        "cos": consts.Poly("cos(\pi x/4)", lambda a: _mp.cos(a*consts.pi_4), (0, 1), 2**-40),
         "tan": consts.Poly("tan(\pi x/4)", lambda a: _mp.tan(a*consts.pi_4), (-1, 1), 2**-48),
         "exp2m1": consts.Poly("2^x-1", lambda x: _mp.powm1(2, x), (0, 1), 2**-48),
     },

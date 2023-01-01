@@ -9,8 +9,7 @@
 
 // Use this instead of FIX64_2_PI for accuracy
 #define CHEBYSHEV_4_PI      {{const(4 / consts.pi.val, frac_bits=cheby_frac_bits)}} // Q1.62
-#define CHEBYSHEV_ONE       {{uconst(1, frac_bits=cheby_frac_bits)}} // UQ2.62
-#define CHEBYSHEV_TWO       {{uconst(2, frac_bits=cheby_frac_bits)}} // UQ2.62
+#define CHEBYSHEV_ONE       {{const(1, frac_bits=cheby_frac_bits)}} // Q1.62
 
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
