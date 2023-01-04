@@ -101,12 +101,12 @@ jobs:
         pip install -U -r requirements.txt
 
     - name: Configure project
-      if: ${{ matrix.cmake-version == '3.12' }} # 3.12 didn't support -S and -B yet
+      if: ${{ matrix.cmake-version <= '3.12' }} # 3.12 didn't support -S and -B yet
       run: |
         mkdir build && cd build
         cmake ..
     - name: Configure project
-      if: ${{ matrix.cmake-version != '3.12' }}
+      if: ${{ matrix.cmake-version > '3.12' }}
       run: |
         cmake -S. -Bbuild
 
@@ -115,6 +115,13 @@ jobs:
         cmake --build build --parallel
 
     - name: Build & run tests
+      if: ${{ matrix.cmake-version <= '3.19' }} # 3.19 didn't support --test-dir yet
+      run: |
+        cd build/tests
+        ctest --output-on-failure --parallel 4
+
+    - name: Build & run tests
+      if: ${{ matrix.cmake-version > '3.19' }}
       run: |
         ctest --test-dir build/tests --output-on-failure --parallel 4
 
