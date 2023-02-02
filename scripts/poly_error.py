@@ -14,7 +14,7 @@ y_plots = int(_mp.ceil(n_plots / x_plots))
 
 for i, (name, poly) in enumerate(polys.items()):
     xpoints = _np.linspace(poly.ival[0], poly.ival[1], 1000, dtype=_mpf)
-    ypoints = _poly.polyval(xpoints, poly.coefs()[::-1]) - _np.vectorize(poly.func)(xpoints)
+    ypoints = _poly.polyval(xpoints, poly.coefs()[::-1]) - _np.vectorize(poly.orig_func)(xpoints)
 
     _plt.subplot(x_plots, y_plots, i+1)
     _plt.plot(xpoints, ypoints)

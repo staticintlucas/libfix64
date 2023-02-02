@@ -24,9 +24,15 @@ sqrt2 = _mp.sqrt(2)
 sqrt1_2 = sqrt2 / 2
 
 class Poly:
-    def __init__(self, name, func, ival, tol):
+    def __init__(self, name, func, ival, tol, proportional=False):
         self.name = name
-        self.func = func
+        self.proportional = proportional
+        if proportional:
+            self.orig_func = func
+            self.func = lambda x: (func(x) / x) if x else func(2**-_mp.prec) / (2**-_mp.prec)
+        else:
+            self.orig_func = func
+            self.func = func
         self.ival = ival
         self.tol = tol
 
@@ -96,7 +102,8 @@ class Poly:
             #  polynomial if we're off by less than 2.5. This avoids the additional runtime since
             # Remez isn't the fastest
             if chebyerr < 2.5 * self.tol:
-                print(f"{self.name}: Chebyshev polynomial of degree {N}; e_max = {_mp.nstr(chebyerr, strip_zeros=False)}")
+                N_eff = N + 1 if self.proportional else N # if proportional we effectively have one other zero term
+                print(f"{self.name}: Chebyshev polynomial of degree {N_eff}; e_max = {_mp.nstr(chebyerr, strip_zeros=False)}")
 
                 # 5 iterations of Remez already gives near-optimal results
                 # TODO should we have a better stop condition?
@@ -111,4 +118,7 @@ class Poly:
                 # If the error from Remez is good enough break and return
                 if err < self.tol:
                     break
+
+        if self.proportional:
+            an = [*an, _mp.zero] # Add extra term to multiply by x
         return an
