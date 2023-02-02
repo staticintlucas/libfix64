@@ -105,12 +105,17 @@ class Poly:
                 N_eff = N + 1 if self.proportional else N # if proportional we effectively have one other zero term
                 print(f"{self.name}: Chebyshev polynomial of degree {N_eff}; e_max = {_mp.nstr(chebyerr, strip_zeros=False)}")
 
-                # 5 iterations of Remez already gives near-optimal results
-                # TODO should we have a better stop condition?
-                for j in range(5):
+                # A couple iterations of Remez already gives near-optimal results
+                old_err = _mp.inf
+                j = 0
+                while True:
                     an, _remezerr = Poly._remez(self.func, an, self.ival)
                     efunc = lambda x: _mp.polyval(an, x) - self.func(x)
                     err = max(abs(efunc(x)) for x in Poly._extrema(efunc, self.ival))
+                    if _mp.fabs(old_err - err) / err < 2**-_mp.prec:
+                        break
+                    old_err = err
+                    j = j + 1
 
                 print(f"{self.name}: Remez algorithm ({j+1} iters); e_max = {_mp.nstr(err, strip_zeros=False)}",
                     f"({_mp.nstr(chebyerr/err, strip_zeros=False)}x smaller)")
