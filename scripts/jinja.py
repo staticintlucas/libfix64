@@ -54,8 +54,8 @@ ARGS = {
     "poly": {
         "sin": consts.Poly("sin(\pi x/4)", lambda a: _mp.sin(a*consts.pi_4), (0, 1), 2**-42),
         "cos": consts.Poly("cos(\pi x/4)", lambda a: _mp.cos(a*consts.pi_4), (0, 1), 2**-42),
-        # Tighter tolerance for tan and proportional error so we can use 1/tan between pi/4 and pi/2
-        "tan": consts.Poly("tan(\pi x/4)", lambda a: _mp.tan(a*consts.pi_4), (0, 1), 2**-42, proportional=True),
+        # Proportional error so we can use 1/tan and angle sum identities
+        "tan": consts.Poly("tan(\pi x/4)", lambda a: _mp.tan(a*consts.pi_4/2), (0, 1), 2**-42, proportional=True),
         "exp2m1": consts.Poly("2^x-1", lambda x: _mp.powm1(2, x), (0, 1), 2**-48),
     },
     "digit_coefs": [
