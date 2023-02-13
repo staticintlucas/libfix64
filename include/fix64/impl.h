@@ -131,6 +131,11 @@ static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi
     *hi = res >> 64;
     return res;
 }
+static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
+    __extension__ __int128 res = (__int128)x * y;
+    *hi = res >> 64;
+    return res;
+}
 #else // if !FIX64_IMPL_USE_INT128
 static inline uint64_t
 fix64_impl_add_u128(uint64_t x_hi, uint64_t x_lo, uint64_t y_hi, uint64_t y_lo, uint64_t *hi) {
@@ -181,10 +186,6 @@ static inline uint64_t fix64_impl_mul_i64_i128(int64_t x, int64_t y, int64_t *hi
     *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
     return lo;
 }
-#endif // if FIX64_IMPL_USE_INT128
-
-// Always implement these in terms of fix64_impl_mul_u64_u128 regardless of whether we have an
-// int128 type. GCC & Clang like to add in a 2nd imul but bitshift + bitwise and is faster
 static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_t *hi) {
     uint64_t uhi;
     uint64_t lo = fix64_impl_mul_u64_u128(x, y, &uhi);
@@ -193,11 +194,7 @@ static inline uint64_t fix64_impl_mul_i64_u64_i128(int64_t x, uint64_t y, int64_
     *hi = (uhi > INT64_MAX) ? (int64_t)(uhi - INT64_MIN) + INT64_MIN : (int64_t)uhi;
     return lo;
 }
-static inline uint64_t fix64_impl_mul_u64_i64_u128(uint64_t x, int64_t y, uint64_t *hi) {
-    uint64_t lo = fix64_impl_mul_u64_u128(x, y, hi);
-    *hi -= (y < 0) ? x : 0;
-    return lo;
-}
+#endif // if FIX64_IMPL_USE_INT128
 
 // Don't try to implement division with __int128, it is at best as fast as our C/ASM combo fallback
 // implementation, but can be slower

@@ -2,15 +2,15 @@
 
 {{autogen_comment}}
 
-{% set cheby_frac_bits = 62 -%}
+{% set trig_frac_bits = 62 -%}
 
 // Number fractional bits
-#define CHEBYSHEV_FRAC_BITS {{cheby_frac_bits}}
+#define TRIG_FRAC_BITS {{trig_frac_bits}}
 
 // Use this instead of FIX64_2_PI for accuracy
-#define CHEBYSHEV_4_PI      {{const(4 / consts.pi.val, frac_bits=cheby_frac_bits)}} // Q1.62
-#define CHEBYSHEV_8_PI      {{uconst(8 / consts.pi.val, frac_bits=cheby_frac_bits)}} // UQ2.62
-#define CHEBYSHEV_ONE       {{const(1, frac_bits=cheby_frac_bits)}} // Q1.62
+#define TRIG_4_PI   {{const(4 / consts.pi.val, frac_bits=trig_frac_bits)}} // Q1.62
+#define TRIG_8_PI   {{uconst(8 / consts.pi.val, frac_bits=trig_frac_bits)}} // UQ2.62
+#define TRIG_ONE    {{const(1, frac_bits=trig_frac_bits)}} // UQ1.62
 
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
@@ -19,16 +19,18 @@ static int64_t chebyshev_{{func}}_impl(int64_t value) {
     static const int64_t coefs[{{coefs | length}}] = {
         // clang-format off
 {% for coef in coefs %}
-        {{const(coef, frac_bits=cheby_frac_bits, digits=16)}},
+        {{const(coef, frac_bits=trig_frac_bits, digits=16)}},
 {% endfor %}
         // clang-format on
     };
 
+    // Intermediate calculations are done with a UQ0.64 to avoid bit shifts
+    uint64_t uval = (uint64_t)value << (64 - TRIG_FRAC_BITS);
+
     int64_t sum = coefs[0]; // Q1.62
     for (size_t i = 1; i < sizeof(coefs) / sizeof(coefs[0]); i++) {
-        int64_t hi;
-        uint64_t lo = fix64_impl_mul_i64_i128(sum, value, &hi); // Q3.124
-        sum = (hi << (64 - CHEBYSHEV_FRAC_BITS)) | (lo >> CHEBYSHEV_FRAC_BITS); // Q1.62
+        // Note: assumes 64 fractional bits in uval
+        fix64_impl_mul_i64_u64_i128(sum, uval, &sum); // Q1.126 => take upper half for Q1.62
         sum += coefs[i]; // Q1.62
     }
 
