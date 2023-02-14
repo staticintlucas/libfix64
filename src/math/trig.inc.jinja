@@ -8,9 +8,9 @@
 #define TRIG_FRAC_BITS {{trig_frac_bits}}
 
 // Use this instead of FIX64_2_PI for accuracy
-#define TRIG_4_PI   {{const(4 / consts.pi.val, frac_bits=trig_frac_bits)}} // Q1.62
-#define TRIG_8_PI   {{uconst(8 / consts.pi.val, frac_bits=trig_frac_bits)}} // UQ2.62
-#define TRIG_ONE    {{const(1, frac_bits=trig_frac_bits)}} // UQ1.62
+#define TRIG_4_PI      {{const(4 / consts.pi.val, frac_bits=trig_frac_bits)}} // Q1.62
+#define TRIG_8_PI      {{uconst(8 / consts.pi.val, frac_bits=trig_frac_bits)}} // UQ2.62
+#define TRIG_ONE       {{const(1, frac_bits=trig_frac_bits)}} // UQ1.62
 
 {% for func in ["sin", "cos", "tan"] %}
 static int64_t chebyshev_{{func}}_impl(int64_t value) {
